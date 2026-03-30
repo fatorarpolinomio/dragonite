@@ -24,15 +24,12 @@ This project is in the scope of a Distribuited Systems Development course. **Dra
 
 <!--## Background-->
 
-## Install
+## Install & Usage
 
-!TODO
+The Dragonite Project offers both a **client** and **server** app. To see the proper installation and usage guides for the tool:
 
-<!-- ### Dependencies -->
-
-## Usage
-
-!TODO:
+- [Server's Documentation](client/dragonite/README.md)
+- [Client's Documentation](docs/client/README.md)
 
 <!-- ### CLI/Others -->
 
