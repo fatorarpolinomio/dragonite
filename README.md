@@ -74,6 +74,15 @@ Access the endpoint on the terminal, normally http://localhost:5173.
 make docker-run
 ```
 
+After running the container for the first time you need to create the tables inside the database do that using the `migrate.sh` script as follows:
+
+```sh
+export DB_URL=postgres://user:pass@localhost:5432/dbname?sslmode=disable
+./migrate.sh up
+```
+
+Use the same values as in `.env` file.
+
 2. Run the project using the Makefile (see more commands at [Makefile](./Makefile)).
 
 ```sh
