@@ -28,8 +28,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /_matrix/client/v3/login", h.getLogin)
 	mux.HandleFunc("POST /_matrix/client/v3/login", h.postLogin)
 	mux.HandleFunc("POST /_matrix/client/v3/refresh", h.postRefresh)
-	mux.HandleFunc("POST /_matrix/client/v3/logout", h.postLogout)     // TODO: aplicar middleware de auth
-	mux.HandleFunc("POST /_matrix/client/v3/register", h.postRegister) // TODO
+	mux.HandleFunc("POST /_matrix/client/v3/logout", h.postLogout) // TODO: aplicar middleware de auth
+	mux.HandleFunc("POST /_matrix/client/v3/register", h.postRegister)
 }
 
 // getLogin retorna os tipos de autenticação suportados pelo servidor, o cliente deve escolher um para usar em /login
@@ -109,18 +109,17 @@ func (h *Handler) postLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = h.deviceStore.CreateOrUpdate(ctx, &device)
+	if err != nil {
+		log.Printf("Failed to create or update device: %v", err)
+		util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "Failed to create or update device"))
+		return
+	}
 
 	// cria os tokens de acesso
 	accessToken, expiresMS, err := GenerateAccessToken(payload.Identifier.User, device.ID)
 	if err != nil {
 		log.Printf("Failed to generate access token: %v", err)
 		util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "Failed to generate access token"))
-		return
-	}
-
-	if err != nil {
-		log.Printf("Failed to create or update device: %v", err)
-		util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "Failed to create or update device"))
 		return
 	}
 
@@ -186,7 +185,12 @@ func (h *Handler) postLogout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	deviceID := ctx.Value("device_id") // NOTE: considera que o middleware de autenticação injetou esses valores a partir do access token
+	deviceIDValue := ctx.Value("device_id") // NOTE: considera que o middleware de autenticação injetou esses valores a partir do access token
+	deviceID, ok := deviceIDValue.(string)
+	if !ok || deviceID == "" {
+		util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "Missing device_id in context."))
+		return
+	}
 
 	device, err := h.deviceStore.GetByID(ctx, deviceID)
 	if err != nil {
@@ -216,7 +220,10 @@ func (h *Handler) postRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := model.UsuarioCreate{}
+	props := model.UsuarioCreate{
+		LocalPart: req.Username,
+		Senha:     req.Password,
+	}
 	user, err := props.ToUsuario()
 	if err != nil {
 		if err == types.ErrInvalidUsername {
@@ -243,7 +250,7 @@ func (h *Handler) postRegister(w http.ResponseWriter, r *http.Request) {
 	response := RegisterResponse{
 		UserID: user.ID,
 	}
-	// Se cadastro loga o usuario
+	// Se devemos logar o usuario
 	if !req.InhibitLogin {
 		refreshToken, refreshExpires, err := GenerateRefreshToken()
 		if err != nil {
