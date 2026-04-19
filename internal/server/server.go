@@ -14,7 +14,8 @@ import (
 type AppServer struct {
 	port int
 
-	db database.Service
+	db           database.Service
+	tokenService TokenService
 }
 
 // Cria um novo servidor http
