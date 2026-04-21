@@ -28,10 +28,10 @@
 			return;
 		}
 
-		if (userpassword.trim().length < 4) {
+		if (userpassword.trim().length < 6) {
 			toaster.error({
 				title: 'Password Too Short',
-				description: 'Your password must be at least 4 characters long.'
+				description: 'Your password must be at least 6 characters long.'
 			});
 			return;
 		}
