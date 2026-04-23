@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 	"time"
+	
 
 	"github.com/caio-bernardo/dragonite/internal/model"
 	"github.com/caio-bernardo/dragonite/internal/types"
@@ -91,7 +92,7 @@ func TestCanalStoreCRUDAndCleanup(t *testing.T) {
 	insertUsuarioCanal(t, model.UsuarioCanal{
 		CanalID:   canal.ID,
 		UsuarioID: owner.ID,
-		EventoID:  evento.ID,
+		EventoID:  &evento.ID,
 		Membresia: "join",
 	})
 
@@ -107,5 +108,95 @@ func TestCanalStoreCRUDAndCleanup(t *testing.T) {
 
 	if _, err := store.GetByID(ctx, canal.ID); !errors.Is(err, types.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound after delete, got: %v", err)
+	}
+}
+
+
+func TestCanalStore_ListPublic(t *testing.T) {
+	resetTables(t)
+
+	owner := model.Usuario{
+		ID: "@list-owner:example.com", LocalPart: "list-owner",
+		Nome: "Owner", Senha: "password", DataCriacao: baseTime,
+	}
+	insertUsuario(t, owner)
+
+	store := NewChannelStore(testDB)
+	ctx := context.Background()
+
+	c1 := model.Canal{
+		ID: "!room1:example.com", LocalPart: "room1", ServerName: "example.com",
+		Nome: "Room 1", IsPublic: true, JoinRules: "public", GuestAccess: "forbidden",
+		HistoryVisibility: "shared", Versao: "11", CriadorID: owner.ID,
+		MemberCount: 1, DataCriacao: baseTime,
+	}
+	c2 := model.Canal{
+		ID: "!room2:example.com", LocalPart: "room2", ServerName: "example.com",
+		Nome: "Room 2", IsPublic: true, JoinRules: "public", GuestAccess: "forbidden",
+		HistoryVisibility: "shared", Versao: "11", CriadorID: owner.ID,
+		MemberCount: 5, DataCriacao: baseTime,
+	}
+
+	for _, c := range []model.Canal{c1, c2} {
+		if err := store.Create(ctx, &c); err != nil {
+			t.Fatalf("Create() failed: %v", err)
+		}
+	}
+
+	canais, nextBatch, err := store.ListPublic(ctx, 10, "")
+	if err != nil {
+		t.Fatalf("ListPublic() failed: %v", err)
+	}
+	if len(canais) != 2 {
+		t.Fatalf("expected 2 canais, got %d", len(canais))
+	}
+	// Ordenado por member_count DESC
+	if canais[0].ID != c2.ID {
+		t.Fatalf("expected canal with more members first")
+	}
+	if nextBatch != "" {
+		t.Fatalf("expected empty nextBatch, got %q", nextBatch)
+	}
+}
+
+func TestCanalStore_GetByID_NotFound(t *testing.T) {
+	resetTables(t)
+
+	store := NewChannelStore(testDB)
+	_, err := store.GetByID(context.Background(), "!naoexiste:example.com")
+	if !errors.Is(err, types.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+func TestCanalStore_UpdateMemberCount(t *testing.T) {
+	resetTables(t)
+
+	owner := model.Usuario{
+		ID: "@count-owner:example.com", LocalPart: "count-owner",
+		Nome: "Owner", Senha: "password", DataCriacao: baseTime,
+	}
+	insertUsuario(t, owner)
+
+	store := NewChannelStore(testDB)
+	ctx := context.Background()
+
+	canal := model.Canal{
+		ID: "!count-room:example.com", LocalPart: "count-room", ServerName: "example.com",
+		Nome: "Count Room", IsPublic: true, JoinRules: "public", GuestAccess: "forbidden",
+		HistoryVisibility: "shared", Versao: "11", CriadorID: owner.ID,
+		MemberCount: 1, DataCriacao: baseTime,
+	}
+	if err := store.Create(ctx, &canal); err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	if err := store.UpdateMemberCount(ctx, canal.ID, +1); err != nil {
+		t.Fatalf("UpdateMemberCount(+1) failed: %v", err)
+	}
+
+	got, _ := store.GetByID(ctx, canal.ID)
+	if got.MemberCount != 2 {
+		t.Fatalf("expected MemberCount 2, got %d", got.MemberCount)
 	}
 }

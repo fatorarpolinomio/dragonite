@@ -32,14 +32,22 @@ CREATE TABLE IF NOT EXISTS usuario (
 );
 
 CREATE TABLE IF NOT EXISTS canal (
-	id_canal VARCHAR(512) PRIMARY KEY,
-	nome_canal VARCHAR(50) NOT NULL,
-	descricao_canal TEXT,
-	foto_canal TEXT,
-	is_public_canal BOOLEAN NOT NULL DEFAULT FALSE,
-	versao_canal VARCHAR(50) DEFAULT '1',
-	fk_id_criador VARCHAR(512) NOT NULL REFERENCES usuario(id_usuario),
-	data_criacao_canal TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	id_canal            VARCHAR(512) PRIMARY KEY,
+    local_part          VARCHAR(255),
+    server_name         VARCHAR(255),
+    nome_canal          VARCHAR(50)  NOT NULL,
+    descricao_canal     TEXT,
+    foto_canal          TEXT,
+    canonical_alias     VARCHAR(512),
+    is_public_canal     BOOLEAN      NOT NULL DEFAULT FALSE,
+    join_rules          VARCHAR(50)  NOT NULL DEFAULT 'invite',
+    guest_access        VARCHAR(50)  NOT NULL DEFAULT 'forbidden',
+    versao_canal        VARCHAR(50)  DEFAULT '1',
+    fk_id_criador       VARCHAR(512) NOT NULL REFERENCES usuario(id_usuario),
+    member_count        INTEGER      NOT NULL DEFAULT 0,
+    room_type           VARCHAR(255),
+    history_visibility  VARCHAR(50)  NOT NULL DEFAULT 'shared',
+    data_criacao_canal  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS evento (
@@ -72,9 +80,11 @@ CREATE TABLE IF NOT EXISTS estado_atual_canal (
 CREATE TABLE IF NOT EXISTS usuario_canal (
 	fk_id_canal VARCHAR(512) NOT NULL REFERENCES canal(id_canal),
 	fk_id_usuario VARCHAR(512) NOT NULL REFERENCES usuario(id_usuario),
-	fk_id_evento VARCHAR(512) NOT NULL REFERENCES evento(id_evento),
+	fk_id_evento VARCHAR(512) REFERENCES evento(id_evento),
 	membresia VARCHAR(50) NOT NULL,
+	joined_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (fk_id_canal, fk_id_usuario)
+	
 );
 
 CREATE TABLE IF NOT EXISTS dispositivo (
@@ -104,7 +114,7 @@ func TestMain(m *testing.M) {
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second)),
+				WithStartupTimeout(60*time.Second)),
 	)
 	if err != nil {
 		log.Fatalf("could not start postgres container: %v", err)

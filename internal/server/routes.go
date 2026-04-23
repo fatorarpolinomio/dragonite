@@ -14,10 +14,12 @@ func (s *AppServer) RegisterRoutes() http.Handler {
 	// repositorios
 	userStore := repository.NewUsuarioStore(s.db.Get())
 	deviceStore := repository.NewDispositivoStore(s.db.Get())
+	canalStore := repository.NewChannelStore(s.db.Get())
+	usuarioCanalStore := repository.NewUsuarioCanalStore(s.db.Get())
 
 	mux := http.NewServeMux()
 
-	clientHandler := client.NewHandler(userStore, deviceStore)
+	clientHandler := client.NewHandler(userStore, deviceStore, canalStore, usuarioCanalStore)
 
 	// Registra rotas
 	mux.HandleFunc("GET /health", s.healthHandler)

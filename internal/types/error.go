@@ -8,6 +8,7 @@ var (
 	ErrBodyRequired    = errors.New("Body is required")
 	ErrInvalidUsername = errors.New("Invalid username")
 	ErrLocalpartInUse  = errors.New("Localpart already exists")
+	ErrRoomAliasInUse  = errors.New("Room alias already in use")
 )
 
 // MatrixErrorCode contém os códigos de erros do Matrix

@@ -91,7 +91,7 @@ func TestEventoStoreCRUDAndCleanup(t *testing.T) {
 	insertUsuarioCanal(t, model.UsuarioCanal{
 		CanalID:   canal.ID,
 		UsuarioID: user.ID,
-		EventoID:  evento.ID,
+		EventoID:  &evento.ID,
 		Membresia: "join",
 	})
 

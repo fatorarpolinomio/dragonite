@@ -17,6 +17,7 @@ type UsuarioCanalStore interface {
 	Create(ctx context.Context, props *model.UsuarioCanal) error
 	Update(ctx context.Context, props *model.UsuarioCanal) error
 	Delete(ctx context.Context, id_usuario string, id_canal string) (*model.UsuarioCanal, error)
+	AddOrUpdateMembership(ctx context.Context, m *model.UsuarioCanal) error
 }
 
 type usuarioCanalStore struct {
@@ -48,7 +49,7 @@ func (s *usuarioCanalStore) GetAll(ctx context.Context, filter util.Filter) ([]m
 	return usuarios, nil
 }
 
-// GetByComposedID busca uma entrada específica de ItemOferta pela sua chave primária composta.
+// GetByComposedID busca uma entrada de UsuarioCanal usando a chave composta de id_usuario e id_canal.
 func (s *usuarioCanalStore) GetByComposedID(ctx context.Context, id_usuario string, id_canal string) (*model.UsuarioCanal, error) {
 	query := "SELECT fk_id_canal, fk_id_usuario, fk_id_evento, membresia FROM usuario_canal WHERE fk_id_usuario = $1 AND fk_id_canal = $2"
 	row := s.db.QueryRowContext(ctx, query, id_usuario, id_canal)
@@ -150,4 +151,14 @@ func (s *usuarioCanalStore) Delete(ctx context.Context, id_usuario string, id_ca
 	}
 
 	return usuario, nil
+}
+
+func (s *usuarioCanalStore) AddOrUpdateMembership(ctx context.Context, m *model.UsuarioCanal) error {
+	query := `
+		INSERT INTO usuario_canal (fk_id_canal, fk_id_usuario, membresia, joined_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (fk_id_canal, fk_id_usuario) DO UPDATE
+			SET membresia = EXCLUDED.membresia`
+	_, err := s.db.ExecContext(ctx, query, m.CanalID, m.UsuarioID, m.Membresia, m.JoinedAt)
+	return err
 }

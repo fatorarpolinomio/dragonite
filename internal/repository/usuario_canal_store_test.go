@@ -66,7 +66,7 @@ func TestUsuarioCanalStoreCompositeQueriesAndUpdates(t *testing.T) {
 	uc := model.UsuarioCanal{
 		CanalID:   canal.ID,
 		UsuarioID: user.ID,
-		EventoID:  evento1.ID,
+		EventoID:  &evento1.ID,
 		Membresia: "join",
 	}
 
@@ -78,7 +78,8 @@ func TestUsuarioCanalStoreCompositeQueriesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByComposedID() failed: %v", err)
 	}
-	if got.CanalID != canal.ID || got.UsuarioID != user.ID || got.EventoID != evento1.ID || got.Membresia != "join" {
+	if got.CanalID != canal.ID || got.UsuarioID != user.ID || got.EventoID == nil || 
+		*got.EventoID != evento1.ID || got.Membresia != "join" {
 		t.Fatalf("GetByComposedID() returned unexpected record: %#v", got)
 	}
 
@@ -107,7 +108,7 @@ func TestUsuarioCanalStoreCompositeQueriesAndUpdates(t *testing.T) {
 	}
 
 	updated := uc
-	updated.EventoID = evento2.ID
+	updated.EventoID = &evento2.ID
 	updated.Membresia = "leave"
 
 	if err := store.Update(ctx, &updated); err != nil {
@@ -118,7 +119,7 @@ func TestUsuarioCanalStoreCompositeQueriesAndUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByComposedID() after update failed: %v", err)
 	}
-	if gotUpdated.EventoID != evento2.ID || gotUpdated.Membresia != "leave" {
+	if gotUpdated.EventoID == nil || *gotUpdated.EventoID != evento2.ID || gotUpdated.Membresia != "leave" {
 		t.Fatalf("Update() did not persist changes: %#v", gotUpdated)
 	}
 
@@ -132,5 +133,49 @@ func TestUsuarioCanalStoreCompositeQueriesAndUpdates(t *testing.T) {
 
 	if _, err := store.GetByComposedID(ctx, user.ID, canal.ID); !errors.Is(err, types.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound after delete, got: %v", err)
+	}
+}
+
+func TestUsuarioCanalStore_AddOrUpdateMembership(t *testing.T) {
+	resetTables(t)
+
+	user := model.Usuario{
+		ID: "@upsert-user:example.com", LocalPart: "upsert-user",
+		Nome: "User", Senha: "password", DataCriacao: baseTime,
+	}
+	insertUsuario(t, user)
+
+	canal := model.Canal{
+		ID: "!upsert-room:example.com", Nome: "Room",
+		IsPublic: true, Versao: "1", CriadorID: user.ID, DataCriacao: baseTime,
+	}
+	insertCanal(t, canal)
+
+	store := NewUsuarioCanalStore(testDB)
+	ctx := context.Background()
+
+	m := &model.UsuarioCanal{
+		CanalID: canal.ID, UsuarioID: user.ID, Membresia: "join", JoinedAt: baseTime,
+	}
+
+	// Insert
+	if err := store.AddOrUpdateMembership(ctx, m); err != nil {
+		t.Fatalf("AddOrUpdateMembership() insert failed: %v", err)
+	}
+
+	got, _ := store.GetByComposedID(ctx, user.ID, canal.ID)
+	if got.Membresia != "join" {
+		t.Fatalf("expected 'join', got %q", got.Membresia)
+	}
+
+	// Update via upsert
+	m.Membresia = "leave"
+	if err := store.AddOrUpdateMembership(ctx, m); err != nil {
+		t.Fatalf("AddOrUpdateMembership() update failed: %v", err)
+	}
+
+	updated, _ := store.GetByComposedID(ctx, user.ID, canal.ID)
+	if updated.Membresia != "leave" {
+		t.Fatalf("expected 'leave', got %q", updated.Membresia)
 	}
 }
