@@ -7,6 +7,7 @@
 		SettingsIcon
 	} from '@lucide/svelte';
 	import { Navigation } from '@skeletonlabs/skeleton-svelte';
+	import UserSearchBar from '$lib/components/UserSearchBar.svelte';
 
 	let isLayoutRail = $state(true);
 
@@ -28,8 +29,9 @@
 			{#if !isLayoutRail}<span>Resize</span>{/if}
 		</Navigation.Trigger>
 	</Navigation.Header>
-	<Navigation.Content>
+	<Navigation.Content class="overflow-visible">
 		<Navigation.Menu>
+			<UserSearchBar isRail={isLayoutRail} onExpand={() => (isLayoutRail = false)} />
 			{#each links as link (link)}
 				{@const Icon = link.icon}
 				<Navigation.TriggerAnchor>
