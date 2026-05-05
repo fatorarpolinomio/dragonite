@@ -78,7 +78,7 @@ func (m *MockDeviceStore) Delete(ctx context.Context, id string) (*model.Disposi
 	return nil, nil
 }
 
-// Implementa repository.ChannelStore com 7 métodos conforme canal_store.go
+// Implementa repository.ChannelStore com 8 métodos conforme canal_store.go
 
 type MockChannelStore struct{}
 
@@ -107,6 +107,10 @@ func (m *MockChannelStore) ListPublic(ctx context.Context, limit int, sinceToken
 }
 
 func (m *MockChannelStore) UpdateMemberCount(ctx context.Context, canalID string, delta int) error {
+	return nil
+}
+
+func (m *MockChannelStore) UpsertEstadoAtual(ctx context.Context, estado *model.EstadoAtualCanal) error {
 	return nil
 }
 
@@ -146,10 +150,38 @@ func (m *MockUsuarioCanalStore) AddOrUpdateMembership(ctx context.Context, mem *
 	return nil
 }
 
+// Implementa repository.EventoStore com 8 métodos conforme evento_store.go
+
+type MockEventoStore struct{}
+
+func (m *MockEventoStore) GetAll(ctx context.Context, filter util.Filter) ([]model.Evento, error) {
+	return []model.Evento{}, nil
+}
+
+func (m *MockEventoStore) GetByID(ctx context.Context, id string) (*model.Evento, error) {
+	return nil, nil
+}
+
+func (m *MockEventoStore) GetByTxnID(ctx context.Context, senderID, txnID string) (*model.Evento, error) {
+	return nil, nil
+}
+
+func (m *MockEventoStore) Create(ctx context.Context, props *model.Evento) error {
+	return nil
+}
+
+func (m *MockEventoStore) Update(ctx context.Context, props *model.Evento) error {
+	return nil
+}
+
+func (m *MockEventoStore) Delete(ctx context.Context, id string) (*model.Evento, error) {
+	return nil, nil
+}
+
 // newTestHandler centraliza a criação do Handler com mocks, evitando
 // repetição em cada teste e garantindo que todos usem os mesmos 4 argumentos
 func newTestHandler(userStore *MockUserStore) *Handler {
-	return NewHandler(userStore, &MockDeviceStore{}, &MockChannelStore{}, &MockUsuarioCanalStore{})
+	return NewHandler(userStore, &MockDeviceStore{}, &MockChannelStore{}, &MockUsuarioCanalStore{}, &MockEventoStore{})
 }
 
 func TestGetVersionsHandler(t *testing.T) {
