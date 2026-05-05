@@ -1,12 +1,7 @@
 <script>
-	import {
-		ArrowLeftRightIcon,
-		HouseIcon,
-		LogOut,
-		MessageSquare,
-		SettingsIcon
-	} from '@lucide/svelte';
-	import { Navigation } from '@skeletonlabs/skeleton-svelte';
+	import { matrixService } from '$lib/stores/matrix.svelte';
+	import { ArrowLeftRightIcon, HouseIcon, MessageSquare, SettingsIcon } from '@lucide/svelte';
+	import { Avatar, Navigation } from '@skeletonlabs/skeleton-svelte';
 
 	let isLayoutRail = $state(true);
 
@@ -19,6 +14,9 @@
 		{ label: 'Rooms', href: '/#', icon: MessageSquare },
 		{ label: 'Settings', href: '/#', icon: SettingsIcon }
 	];
+
+	let avatarSrc = matrixService.userProfile.avatarUrl;
+	let avatarFallback = matrixService.userProfile.displayname.charAt(0).toUpperCase() || 'J';
 </script>
 
 <Navigation layout={isLayoutRail ? 'rail' : 'sidebar'} class="grid grid-rows-[auto_1fr_auto] gap-4">
@@ -40,9 +38,12 @@
 		</Navigation.Menu>
 	</Navigation.Content>
 	<Navigation.Footer>
-		<Navigation.TriggerAnchor href="/" title="Settings" aria-label="Settings">
-			<LogOut class="size-4" />
-			<Navigation.TriggerText>Leave</Navigation.TriggerText>
+		<Navigation.TriggerAnchor href="/" title="Your Profile" aria-label="Your Profile">
+			<Avatar class="size-10">
+				<Avatar.Image src={avatarSrc} alt="user's profile picture" />
+				<Avatar.Fallback>{avatarFallback}</Avatar.Fallback>
+			</Avatar>
+			<Navigation.TriggerText>You</Navigation.TriggerText>
 		</Navigation.TriggerAnchor>
 	</Navigation.Footer>
 </Navigation>
