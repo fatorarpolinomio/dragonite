@@ -1,4 +1,5 @@
 <script>
+	import { resolve } from '$app/paths';
 	import { matrixService } from '$lib/stores/matrix.svelte';
 	import { ArrowLeftRightIcon, HouseIcon, MessageSquare, SettingsIcon } from '@lucide/svelte';
 	import { Avatar, Navigation } from '@skeletonlabs/skeleton-svelte';
@@ -10,7 +11,7 @@
 	}
 
 	const links = [
-		{ label: 'Home', href: '/#', icon: HouseIcon },
+		{ label: 'Home', href: '/dashboard', icon: HouseIcon },
 		{ label: 'Rooms', href: '/#', icon: MessageSquare },
 		{ label: 'Settings', href: '/#', icon: SettingsIcon }
 	];
@@ -30,7 +31,7 @@
 		<Navigation.Menu>
 			{#each links as link (link)}
 				{@const Icon = link.icon}
-				<Navigation.TriggerAnchor>
+				<Navigation.TriggerAnchor href={link.href}>
 					<Icon class={isLayoutRail ? 'size-5' : 'size-4'} />
 					<Navigation.TriggerText>{link.label}</Navigation.TriggerText>
 				</Navigation.TriggerAnchor>
@@ -38,7 +39,11 @@
 		</Navigation.Menu>
 	</Navigation.Content>
 	<Navigation.Footer>
-		<Navigation.TriggerAnchor href="/" title="Your Profile" aria-label="Your Profile">
+		<Navigation.TriggerAnchor
+			href={resolve('/dashboard/profile')}
+			title="Your Profile"
+			aria-label="Your Profile"
+		>
 			<Avatar class="size-10">
 				<Avatar.Image src={avatarSrc} alt="user's profile picture" />
 				<Avatar.Fallback>{avatarFallback}</Avatar.Fallback>

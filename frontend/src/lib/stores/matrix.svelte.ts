@@ -81,8 +81,26 @@ class MatrixService {
 		};
 	}
 
+	async updateProfile(props: { displayname: string }) {
+		await this.client?.setDisplayName(props.displayname);
+	}
+
+	async uploadAvatar(file: File) {
+		if (!this.client) throw Error('Client not initialized');
+		const { content_uri } = await this.client.uploadContent(file, {
+			name: file.name,
+			type: file.type
+		});
+		await this.client.setAvatarUrl(content_uri);
+		return content_uri;
+	}
+
 	isAuthenticated() {
 		return this.client !== null;
+	}
+
+	getUserID() {
+		return this.client?.getUserId() ?? '';
 	}
 }
 
