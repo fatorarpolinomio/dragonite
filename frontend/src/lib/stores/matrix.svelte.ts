@@ -82,7 +82,7 @@ class MatrixService {
 	}
 
 	async searchUsers(term: string) {
-  		if (!this.client) return [];
+  	if (!this.client) return [];
 		const client = this.client;
  		const response = await client.searchUserDirectory({ term, limit: 10 });
  		
@@ -91,10 +91,28 @@ class MatrixService {
    			displayName: user.display_name ?? user.user_id,
    			avatarUrl: user.avatar_url ? (client.mxcUrlToHttp(user.avatar_url) ?? '') : ''
   		}));
+  }
+  
+	async updateProfile(props: { displayname: string }) {
+		await this.client?.setDisplayName(props.displayname);
+	}
+
+	async uploadAvatar(file: File) {
+		if (!this.client) throw Error('Client not initialized');
+		const { content_uri } = await this.client.uploadContent(file, {
+			name: file.name,
+			type: file.type
+		});
+		await this.client.setAvatarUrl(content_uri);
+		return content_uri;
 	}
 
 	isAuthenticated() {
 		return this.client !== null;
+	}
+
+	getUserID() {
+		return this.client?.getUserId() ?? '';
 	}
 }
 
