@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/caio-bernardo/dragonite/internal/model"
@@ -22,6 +23,7 @@ type UserStore interface {
 	Search(ctx context.Context, term string, limit int) ([]model.Usuario, error)
 	GetNameAndPhotoByID(ctx context.Context, id string) (*model.Usuario, error)
 	GetProfileKeyByID(ctx context.Context, id string) (*model.Usuario, error)
+	ClearProfileKey(ctx context.Context, userID string, colunaDB string) error
 }
 
 type usuarioStore struct {
@@ -191,4 +193,22 @@ func (s *usuarioStore) GetNameAndPhotoByID(ctx context.Context, id string) (*mod
 	}
 
 	return &d, nil
+}
+
+// ClearProfileKey define uma coluna específica do perfil como nula no banco de dados.
+func (s *usuarioStore) ClearProfileKey(ctx context.Context, userID string, colunaDB string) error {
+
+	query := fmt.Sprintf(`UPDATE Usuario SET %s = NULL WHERE id_usuario = $1`, colunaDB)
+
+	resultado, err := s.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return err
+	}
+
+	linhasAfetadas, _ := resultado.RowsAffected()
+	if linhasAfetadas == 0 {
+		return types.ErrNotFound
+	}
+
+	return nil
 }
