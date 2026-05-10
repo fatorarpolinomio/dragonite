@@ -27,15 +27,10 @@ type UsuarioCreate struct {
 	DataCriacao time.Time `json:"data_criacao_usuario"`
 }
 
-// Essa struct representa o perfil completo
+// ProfileResponse representa o formato de resposta que a API do Matrix exige
 type ProfileResponse struct {
 	DisplayName string `json:"displayname,omitempty"`
 	AvatarURL   string `json:"avatar_url,omitempty"`
-}
-
-// DisplayNameRequest representa a requisição/resposta para displayname
-type DisplayNameRequest struct {
-	DisplayName string `json:"displayname"`
 }
 
 // ToUsuario converte um UsuarioCreate em um Usuario fazendo validação e hash da senha
