@@ -24,6 +24,7 @@ type UserStore interface {
 	GetNameAndPhotoByID(ctx context.Context, id string) (*model.Usuario, error)
 	GetProfileKeyByID(ctx context.Context, id string) (*model.Usuario, error)
 	ClearProfileKey(ctx context.Context, userID string, colunaDB string) error
+	UpdateProfileKey(ctx context.Context, userID string, colunaDB string, novoValor string) error
 }
 
 type usuarioStore struct {
@@ -206,6 +207,27 @@ func (s *usuarioStore) ClearProfileKey(ctx context.Context, userID string, colun
 	}
 
 	linhasAfetadas, _ := resultado.RowsAffected()
+	if linhasAfetadas == 0 {
+		return types.ErrNotFound
+	}
+
+	return nil
+}
+
+// UpdateProfileKey atualiza uma coluna específica do perfil com um novo valor
+func (s *usuarioStore) UpdateProfileKey(ctx context.Context, userID string, colunaDB string, novoValor string) error {
+	query := fmt.Sprintf(`UPDATE Usuario SET %s = $1 WHERE id_usuario = $2`, colunaDB)
+
+	resultado, err := s.db.ExecContext(ctx, query, novoValor, userID)
+	if err != nil {
+		return err
+	}
+
+	linhasAfetadas, err := resultado.RowsAffected()
+	if err != nil {
+		return err
+	}
+
 	if linhasAfetadas == 0 {
 		return types.ErrNotFound
 	}
