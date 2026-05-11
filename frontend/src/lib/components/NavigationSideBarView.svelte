@@ -13,7 +13,7 @@
 
 	const links = [
 		{ label: 'Home', href: '/dashboard', icon: HouseIcon },
-		{ label: 'Rooms', href: '/#', icon: MessageSquare },
+		{ label: 'Rooms', href: '/dashboard/rooms', icon: MessageSquare },
 		{ label: 'Settings', href: '/#', icon: SettingsIcon }
 	];
 
