@@ -18,6 +18,7 @@ type UsuarioCanalStore interface {
 	Update(ctx context.Context, props *model.UsuarioCanal) error
 	Delete(ctx context.Context, id_usuario string, id_canal string) (*model.UsuarioCanal, error)
 	AddOrUpdateMembership(ctx context.Context, m *model.UsuarioCanal) error
+	GetJoinedUserIDsInRoom(ctx context.Context, roomID string) ([]string, error)
 }
 
 type usuarioCanalStore struct {
@@ -84,6 +85,26 @@ func (s *usuarioCanalStore) GetAllByUsuarioID(ctx context.Context, id_usuario st
 		usuariosCanal = append(usuariosCanal, uc)
 	}
 	return usuariosCanal, nil
+}
+
+func (s *usuarioCanalStore) GetJoinedUserIDsInRoom(ctx context.Context, roomID string) ([]string, error) {
+	query := "SELECT fk_id_usuario FROM usuario_canal WHERE fk_id_canal = $1"
+	rows, err := s.db.QueryContext(ctx, query, roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []string
+	for rows.Next() {
+		var userID string
+		err = rows.Scan(&userID)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, userID)
+	}
+	return users, nil
 }
 
 // GetAllByCanalID busca todas as entradas de UsuarioCanal para um determinado canal.

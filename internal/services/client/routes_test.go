@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/json" 
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +14,7 @@ import (
 )
 
 // MockUserStore is a mock implementation of repository.UserStore for testing
-type MockUserStore struct{
+type MockUserStore struct {
 	SearchResults []model.Usuario
 }
 

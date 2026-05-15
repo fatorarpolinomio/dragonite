@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/caio-bernardo/dragonite/internal/model"
+	"github.com/caio-bernardo/dragonite/internal/notifier"
 	"github.com/caio-bernardo/dragonite/internal/repository"
 	"github.com/caio-bernardo/dragonite/internal/types"
 	"github.com/caio-bernardo/dragonite/internal/util"
@@ -18,13 +19,14 @@ import (
 // Handler agrupa as dependências dos handlers de rooms.
 // Mesmo padrão de auth.Handler.
 type Handler struct {
-	canalStore       repository.ChannelStore      
-	usuarioCanalStore repository.UsuarioCanalStore 
-	serverName string 
+	canalStore        repository.ChannelStore
+	usuarioCanalStore repository.UsuarioCanalStore
+	serverName        string
+	notifier          notifier.Notifier
 }
 
-func NewHandler(canalStore repository.ChannelStore, usuarioCanalStore repository.UsuarioCanalStore, serverName string) *Handler {
-	return &Handler{canalStore: canalStore, usuarioCanalStore: usuarioCanalStore, serverName: serverName}
+func NewHandler(canalStore repository.ChannelStore, usuarioCanalStore repository.UsuarioCanalStore, serverName string, notifier notifier.Notifier) *Handler {
+	return &Handler{canalStore: canalStore, usuarioCanalStore: usuarioCanalStore, serverName: serverName, notifier: notifier}
 }
 
 // RegisterRoutes registra todas as rotas de rooms no mux.
@@ -32,10 +34,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware types.Middle
 	// Não requer autenticação (spec permite listagem pública sem token)
 	mux.HandleFunc("GET /_matrix/client/v3/publicRooms", h.getPublicRooms)
 
-	// Requerem autenticação 
+	// Requerem autenticação
 	mux.Handle("POST /_matrix/client/v3/createRoom", authMiddleware(http.HandlerFunc(h.postCreateRoom)))
-    mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/join", authMiddleware(http.HandlerFunc(h.postJoinRoom)))
-    mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/leave", authMiddleware(http.HandlerFunc(h.postLeaveRoom)))
+	mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/join", authMiddleware(http.HandlerFunc(h.postJoinRoom)))
+	mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/leave", authMiddleware(http.HandlerFunc(h.postLeaveRoom)))
 }
 
 // getPublicRooms lista as salas públicas do servidor.
@@ -70,15 +72,15 @@ func (h *Handler) getPublicRooms(w http.ResponseWriter, r *http.Request) {
 		jr := canal.JoinRules
 
 		var nome, descricao, foto *string
-    		if canal.Nome != "" {
-       		 nome = &canal.Nome
-   		}
-    	if canal.Descricao != "" {
-        	descricao = &canal.Descricao
-    	}
-    	if canal.Foto != "" {
-     	   foto = &canal.Foto
-    	}
+		if canal.Nome != "" {
+			nome = &canal.Nome
+		}
+		if canal.Descricao != "" {
+			descricao = &canal.Descricao
+		}
+		if canal.Foto != "" {
+			foto = &canal.Foto
+		}
 
 		chunks = append(chunks, PublicRoomChunk{
 			RoomID:           canal.ID,
@@ -161,24 +163,24 @@ func (h *Handler) postCreateRoom(w http.ResponseWriter, r *http.Request) {
 
 	nome := ""
 	if req.Name != nil {
-    	nome = *req.Name
+		nome = *req.Name
 	}
 	descricao := ""
 	if req.Topic != nil {
-    	descricao = *req.Topic
+		descricao = *req.Topic
 	}
 
 	canalCreate := &model.CanalCreate{
-		LocalPart:   localPart,
-		ServerName:  h.serverName,
-		Nome:        nome,
-		Descricao:   descricao,
-		IsPublic:    isPublic,
-		JoinRules:   joinRules,
-		GuestAccess: "forbidden",
+		LocalPart:         localPart,
+		ServerName:        h.serverName,
+		Nome:              nome,
+		Descricao:         descricao,
+		IsPublic:          isPublic,
+		JoinRules:         joinRules,
+		GuestAccess:       "forbidden",
 		HistoryVisibility: "shared",
-		Versao:     version,
-		CriadorID:   userID,
+		Versao:            version,
+		CriadorID:         userID,
 	}
 	canal := canalCreate.ToCanal()
 
@@ -190,15 +192,17 @@ func (h *Handler) postCreateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// O criador entra automaticamente como membro (spec)
 	membership := &model.UsuarioCanal{
-		CanalID:     canal.ID,
-		UsuarioID:     userID,
-		Membresia:   "join",
-		JoinedAt:   time.Now(),
+		CanalID:   canal.ID,
+		UsuarioID: userID,
+		Membresia: "join",
+		JoinedAt:  time.Now(),
 	}
 	if err := h.usuarioCanalStore.AddOrUpdateMembership(ctx, membership); err != nil {
 		log.Printf("[ERROR] POST /createRoom: failed to add creator membership: %v", err)
 		// não falha a resposta, a sala foi criada; log é suficiente por ora
 	}
+
+	h.wakeUpRoomUsers(ctx, canal.ID)
 
 	util.WriteJSON(w, http.StatusOK, CreateRoomResponse{RoomID: canal.ID})
 }
@@ -244,10 +248,10 @@ func (h *Handler) postJoinRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	membership := &model.UsuarioCanal{
-		CanalID:     roomID,
-		UsuarioID:     userID,
+		CanalID:   roomID,
+		UsuarioID: userID,
 		Membresia: "join",
-		JoinedAt:   time.Now(),
+		JoinedAt:  time.Now(),
 	}
 	if err := h.usuarioCanalStore.AddOrUpdateMembership(ctx, membership); err != nil {
 		log.Printf("[ERROR] POST /rooms/%s/join: %v", roomID, err)
@@ -258,6 +262,8 @@ func (h *Handler) postJoinRoom(w http.ResponseWriter, r *http.Request) {
 	if err := h.canalStore.UpdateMemberCount(ctx, roomID, +1); err != nil {
 		log.Printf("[ERROR] POST /rooms/%s/join: failed to update member count: %v", roomID, err)
 	}
+
+	h.wakeUpRoomUsers(ctx, roomID)
 
 	util.WriteJSON(w, http.StatusOK, JoinRoomResponse{RoomID: roomID})
 }
@@ -292,10 +298,10 @@ func (h *Handler) postLeaveRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	membership := &model.UsuarioCanal{
-		CanalID:     roomID,
-		UsuarioID:    userID,
+		CanalID:   roomID,
+		UsuarioID: userID,
 		Membresia: "leave",
-		JoinedAt:   existing.JoinedAt,
+		JoinedAt:  existing.JoinedAt,
 	}
 	if err := h.usuarioCanalStore.AddOrUpdateMembership(ctx, membership); err != nil {
 		log.Printf("[ERROR] POST /rooms/%s/leave: %v", roomID, err)
@@ -307,6 +313,7 @@ func (h *Handler) postLeaveRoom(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[ERROR] POST /rooms/%s/leave: failed to update member count: %v", roomID, err)
 	}
 
+	h.wakeUpRoomUsers(ctx, roomID)
 	// Spec exige {} com 200 OK — mesmo padrão do postLogout
 	util.WriteJSON(w, http.StatusOK, map[string]any{})
 }
@@ -320,4 +327,13 @@ func generateRoomLocalPart() (string, error) {
 	}
 	// RawURLEncoding: sem padding '=', seguro para IDs Matrix
 	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func (h *Handler) wakeUpRoomUsers(ctx context.Context, roomID string, additionalUsers ...string) {
+	usersInRoom, _ := h.usuarioCanalStore.GetJoinedUserIDsInRoom(ctx, roomID)
+	usersToNotify := append(usersInRoom, additionalUsers...)
+
+	for _, uid := range usersToNotify {
+		h.notifier.Notify(uid)
+	}
 }

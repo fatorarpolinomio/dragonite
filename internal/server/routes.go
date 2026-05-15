@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/caio-bernardo/dragonite/internal/notifier"
 	"github.com/caio-bernardo/dragonite/internal/repository"
 	"github.com/caio-bernardo/dragonite/internal/services/client"
 )
@@ -16,10 +17,11 @@ func (s *AppServer) RegisterRoutes() http.Handler {
 	deviceStore := repository.NewDispositivoStore(s.db.Get())
 	canalStore := repository.NewChannelStore(s.db.Get())
 	usuarioCanalStore := repository.NewUsuarioCanalStore(s.db.Get())
+	notif := notifier.NewInMemoryNotifier()
 
 	mux := http.NewServeMux()
 
-	clientHandler := client.NewHandler(userStore, deviceStore, canalStore, usuarioCanalStore)
+	clientHandler := client.NewHandler(userStore, deviceStore, canalStore, usuarioCanalStore, notif)
 
 	// Registra rotas
 	mux.HandleFunc("GET /health", s.healthHandler)

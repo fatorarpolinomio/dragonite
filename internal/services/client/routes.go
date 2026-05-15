@@ -1,10 +1,14 @@
 package client
 
 import (
+	"log"
 	"net/http"
 	"os"
-	"log"
+	"strconv"
+	"time"
 
+	"github.com/caio-bernardo/dragonite/internal/model"
+	"github.com/caio-bernardo/dragonite/internal/notifier"
 	"github.com/caio-bernardo/dragonite/internal/repository"
 	"github.com/caio-bernardo/dragonite/internal/services/client/auth"
 	"github.com/caio-bernardo/dragonite/internal/services/client/rooms"
@@ -13,20 +17,22 @@ import (
 )
 
 type Handler struct {
-	userStore   repository.UserStore
-	deviceStore repository.DeviceStore
-	canalStore        repository.ChannelStore       
+	userStore         repository.UserStore
+	deviceStore       repository.DeviceStore
+	canalStore        repository.ChannelStore
 	usuarioCanalStore repository.UsuarioCanalStore
+	eventoStore       repository.EventoStore
+	notifier          notifier.Notifier
 }
 
-func NewHandler(userStore repository.UserStore, deviceStore repository.DeviceStore, canalStore repository.ChannelStore, usuarioCanalStore repository.UsuarioCanalStore) *Handler {
-	return &Handler{userStore: userStore, deviceStore: deviceStore, canalStore: canalStore, usuarioCanalStore: usuarioCanalStore}
+func NewHandler(userStore repository.UserStore, deviceStore repository.DeviceStore, canalStore repository.ChannelStore, usuarioCanalStore repository.UsuarioCanalStore, notifier notifier.Notifier) *Handler {
+	return &Handler{userStore: userStore, deviceStore: deviceStore, canalStore: canalStore, usuarioCanalStore: usuarioCanalStore, notifier: notifier}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware types.Middleware) {
 
 	auth := auth.NewHandler(h.userStore, h.deviceStore)
-	roomHandler := rooms.NewHandler(h.canalStore, h.usuarioCanalStore, os.Getenv("SERVER_NAME"))
+	roomHandler := rooms.NewHandler(h.canalStore, h.usuarioCanalStore, os.Getenv("SERVER_NAME"), h.notifier)
 
 	mux.HandleFunc("GET /_matrix/client/versions", h.getVersions)
 
@@ -34,7 +40,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware types.Middle
 	auth.RegisterRoutes(mux, authMiddleware)
 
 	// sincronização de dados
-	mux.HandleFunc("GET /_matrix/client/sync", util.UnimplementedHandler) // WARN: esse é o dificil
+	mux.Handle("GET /_matrix/v3/client/sync", authMiddleware(http.HandlerFunc(h.syncClient))) // WARN: esse é o dificil
 
 	// chats e manipulação de salas
 	roomHandler.RegisterRoutes(mux, authMiddleware)
@@ -104,4 +110,67 @@ func (h *Handler) searchUsers(w http.ResponseWriter, r *http.Request) {
 		Limited: limited,
 		Results: results,
 	})
+}
+
+// syncClient lida com a sincronização de dados do cliente com o servidor
+// Pode ser usado para receber um log inicial após o login e sincronização incremental de alterações.
+func (h *Handler) syncClient(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID := ctx.Value(types.UserIDKey).(string)
+	// Constroi o corpo da requisição
+	var req SyncClientRequest
+	req.Since = model.ParseToken(r.FormValue("since"))
+	req.Filter = r.FormValue("filter")
+	req.FullState = r.FormValue("full_state") == "true"
+	req.SetPresence = SetPresence(r.FormValue("set_presence"))
+	timeout, err := strconv.Atoi(r.FormValue("timeout"))
+	if err != nil {
+		util.WriteError(w, http.StatusBadRequest, types.NewErrorResponse(types.M_UNKNOWN, "could not parse timeout. Expected integer"))
+		return
+	}
+	req.Timeout = time.Duration(timeout) * time.Millisecond
+
+	// Lógica de Long-Polling
+	if req.Since.RoomEvents != 0 {
+		hasEvents, err := h.eventoStore.CheckNew(ctx, userID, req.Since)
+		if err != nil {
+			util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "could not check new events"))
+			return
+		}
+
+		if !hasEvents && req.Timeout > 0 {
+			// sem eventos, long-polling
+			ch := h.notifier.Subscribe(userID)
+			defer h.notifier.Unsubscribe(userID, ch)
+
+			select {
+			case <-ch:
+				// Novo evento, pode acessar o banco
+			case <-time.After(req.Timeout):
+				// Deu timeout antes de um novo evento, cria novo token e retorna
+				maxGlobal, _ := h.eventoStore.GetMaxGlobalStreamOrdering(ctx)
+				if maxGlobal > req.Since.RoomEvents {
+					req.Since.RoomEvents = maxGlobal
+				}
+				response := createSyncResponse()
+				response.NextBatch = req.Since
+				util.WriteJSON(w, http.StatusOK, response)
+				return
+			case <-ctx.Done():
+				// o client se desconectou
+				return
+			}
+		}
+	}
+
+	// accesso ao banco
+	events, newToken, err := h.eventoStore.GetSince(ctx, userID, req.Since)
+	if err != nil {
+		util.WriteError(w, http.StatusInternalServerError, types.NewErrorResponse(types.M_UNKNOWN, "could not get events"))
+		return
+	}
+	// cria a resposta
+	response := encodeEventsIntoResponse(events, newToken)
+
+	util.WriteJSON(w, http.StatusOK, response)
 }
