@@ -68,3 +68,7 @@ func GetComposedID(r *http.Request) (int64, int64, error) {
 func WriteError(w http.ResponseWriter, status int, message types.ErrorResponse) {
 	WriteJSON(w, status, message)
 }
+
+func CanonicalJSON(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
