@@ -47,6 +47,7 @@
 	},
 	"dependencies": {
 		"@lucide/svelte": "^1.14.0",
+		"emoji-picker-element": "^1.29.1",
 		"matrix-js-sdk": "^41.2.0"
 	}
 }

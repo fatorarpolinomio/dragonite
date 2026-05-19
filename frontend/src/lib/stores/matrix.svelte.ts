@@ -1,9 +1,10 @@
-import { createClient, type MatrixClient } from 'matrix-js-sdk';
+import { createClient, type MatrixClient, RoomEvent, ClientEvent, SyncState } from 'matrix-js-sdk';
 import { browser } from '$app/environment';
 
 class MatrixService {
 	client: MatrixClient | null = $state(null);
 	userProfile = $state({ displayname: '', avatarUrl: '' });
+	syncState = $state<SyncState | 'STOPPED'>('STOPPED');
 
 	constructor() {
 		if (browser) {
@@ -27,6 +28,10 @@ class MatrixService {
 			accessToken,
 			userId
 		});
+
+		this.client.on(ClientEvent.Sync, (state) => {
+       		this.syncState = state;
+    	});
 
 		// vai chamar sync a cada 10 segundos
 		await this.client.startClient({ initialSyncLimit: 10 });
@@ -71,6 +76,7 @@ class MatrixService {
 		if (this.client) this.client.stopClient();
 		localStorage.clear();
 		this.client = null;
+		this.syncState = 'STOPPED'; 
 	}
 
 	async fetchProfile() {
@@ -91,7 +97,7 @@ class MatrixService {
    			displayName: user.display_name ?? user.user_id,
    			avatarUrl: user.avatar_url ? (client.mxcUrlToHttp(user.avatar_url) ?? '') : ''
   		}));
-  }
+    }
   
 	async updateProfile(props: { displayname: string }) {
 		await this.client?.setDisplayName(props.displayname);
@@ -113,6 +119,50 @@ class MatrixService {
 
 	getUserID() {
 		return this.client?.getUserId() ?? '';
+	}
+
+	getRoomMessages(roomId: string) {
+    const room = this.client?.getRoom(roomId);
+    if (!room) return [];
+
+    return room
+        .getLiveTimeline()
+        .getEvents()
+        .filter((e) => e.getType() === 'm.room.message')
+        .map((e) => {
+            const senderId = e.getSender() ?? 'unknown';
+            
+            const senderName = this.client?.getUser(senderId)?.displayName ?? senderId;
+
+            return {
+                id: e.getId() ?? crypto.randomUUID(),
+                senderId,
+                senderName,
+                body: (e.getContent().body as string) ?? '',
+                timestamp:
+                    e.getDate()?.toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                    }) ?? '',
+            };
+        });
+	}
+
+	getRoomName(roomId: string): string {
+    return this.client?.getRoom(roomId)?.name ?? roomId;
+	}
+
+	async sendMessage(roomId: string, body: string) {
+		if (!this.client) throw new Error('Client not initialized');
+		await this.client.sendTextMessage(roomId, body);
+	}
+
+	onRoomTimeline(roomId: string, callback: () => void): () => void {
+		const handler = (_event: unknown, room: { roomId?: string } | undefined) => {
+			if (room?.roomId === roomId) callback();
+		};
+		this.client?.on(RoomEvent.Timeline, handler as never);
+		return () => this.client?.off(RoomEvent.Timeline, handler as never);
 	}
 }
 
