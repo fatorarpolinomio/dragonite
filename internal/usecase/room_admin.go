@@ -37,9 +37,10 @@ type RoomAdminService struct {
 	eventoStore  EventoStorage
 }
 
-func NewRoomAdminService(serverName string, fedService FederationService, canalStore CanalStorage, eventoStore EventoStorage, usuarioStore UsuarioStorage) *RoomAdminService {
+func NewRoomAdminService(serverName string, uow WorkUnit, fedService FederationService, canalStore CanalStorage, eventoStore EventoStorage, usuarioStore UsuarioStorage) *RoomAdminService {
 	return &RoomAdminService{
 		serverName:   serverName,
+		uow:          uow,
 		fedService:   fedService,
 		usuarioStore: usuarioStore,
 		canalStore:   canalStore,
@@ -117,11 +118,28 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 			if err := s.eventoStore.SaveEvento(txCtx, event); err != nil {
 				return err
 			}
+
+			if event.StateKey != nil {
+				if err := s.canalStore.UpsertCurrentState(txCtx, roomID, event.Tipo, *event.StateKey, event.ID); err != nil {
+					return err
+				}
+			}
 		}
 
-		// atualiza extremidades e estado atual dos eventos
-		if err := s.canalStore.UpdateForwardExtremities(txCtx, roomID, []string{rulesEvent.ID}); err != nil {
+		// atualiza a extremidade do último evento
+		lastEvent := eventsToSave[len(eventsToSave)-1]
+		if err := s.canalStore.UpdateForwardExtremities(txCtx, roomID, []string{lastEvent.ID}); err != nil {
 			return err
+		}
+
+		// 4. Popula a tabela Canal_Membership para que o Notifier funcione
+		if err := s.canalStore.UpsertMembership(txCtx, roomID, props.CreatorID, "join"); err != nil {
+			return err
+		}
+		for _, invitee := range props.Invite {
+			if err := s.canalStore.UpsertMembership(txCtx, roomID, invitee, "invite"); err != nil {
+				return err
+			}
 		}
 
 		// insere alias

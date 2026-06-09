@@ -46,18 +46,20 @@ func main() {
 
 	// cria usecases
 	authService := usecase.NewAuthService(config.JWTToken, config.ServerName, storage, storage)
+	authRuleResolver := usecase.NewAuthRuleResolver(storage)
 	dirService := usecase.NewDirectoryService(storage, storage)
 	fedService := usecase.NewFederationService()
 	profileService := usecase.NewProfileService(storage)
-	roomAdminService := usecase.NewRoomAdminService(config.ServerName, fedService, storage, storage, storage)
-	roomInteractionsService := usecase.NewRoomInteractionService(storage, storage, fedService, storage)
+	roomAdminService := usecase.NewRoomAdminService(config.ServerName, storage, fedService, storage, storage, storage)
+	roomInteractionsService := usecase.NewRoomInteractionService(storage, storage, fedService, authRuleResolver, storage)
+	roomMembershipService := usecase.NewRoomMembershipService(storage, storage, storage, authRuleResolver)
 	syncService := usecase.NewSyncService(storage, notifier)
 	systemService := usecase.NewSystemService(config.ServerName, config.Version, config.PublicKey, config.PrivateKey, config.KeyID, storage)
 	usuarioService := usecase.NewUsuarioService(storage, storage, storage)
 
 	// cria servidor
 	server := http_adapter.NewServer(config.ServerPort, config.JWTToken,
-		config.ServerName, authService, dirService, profileService,
+		config.ServerName, authService, dirService, profileService, roomMembershipService,
 		roomAdminService, roomInteractionsService, syncService, systemService,
 		usuarioService,
 		idempoCache,

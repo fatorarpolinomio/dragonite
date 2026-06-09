@@ -43,15 +43,13 @@ func (p *PostgresNotifier) StartBackgroundListener(ctx context.Context) error {
 		}
 
 		// TODO: considerar eventos de accountData e presence. Mas fazer isso depois
-		// TODO: como notificar de um invite?
 		// notifica todos os usuario que estão no canal em que o evento ocorreu
 		roomID := notif.Payload
-		rows, err := conn.Query(ctx, "SELECT id_usuario FROM Canal_Membership WHERE id_canal = $1 AND membership_type = 'join'", roomID)
+		rows, err := conn.Query(ctx, "SELECT id_usuario FROM Canal_Membership WHERE id_canal = $1 AND membership_type IN ('join', 'invite')", roomID)
 		if err != nil {
 			log.Println("Error querying Canal_Membership: %w", err)
 			continue
 		}
-		defer rows.Close()
 		for rows.Next() {
 			var userID string
 			if err := rows.Scan(&userID); err != nil {
@@ -63,6 +61,7 @@ func (p *PostgresNotifier) StartBackgroundListener(ctx context.Context) error {
 		if err := rows.Err(); err != nil {
 			log.Println("Error iterating over users: %w", err)
 		}
+		rows.Close()
 	}
 }
 

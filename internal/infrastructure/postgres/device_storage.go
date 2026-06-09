@@ -43,7 +43,8 @@ func (s *PostgresStorage) GetDispositivoByRefreshToken(ctx context.Context, refr
 }
 
 func (s *PostgresStorage) UpsertDispositivo(ctx context.Context, device *domain.Dispositivo) error {
-	_, err := s.db.Exec(ctx,
+	db := getTxOrPool(ctx, s.db)
+	_, err := db.Exec(ctx,
 		"INSERT INTO Dispositivo (id, fk_id_usuario, nome, refresh_token, refresh_token_expires_at, ultimo_ip_visto, ultimo_timestamp_visto) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO UPDATE SET nome = $3, refresh_token = $4, refresh_token_expires_at = $5, ultimo_ip_visto = $6, ultimo_timestamp_visto = $7",
 		device.ID, device.UsuarioID, device.Nome, device.RefreshToken, device.RefreshTokenExpiresAt, device.UltimoIPVisto, device.UltimoTimestampVisto)
 	if err != nil {
@@ -54,7 +55,8 @@ func (s *PostgresStorage) UpsertDispositivo(ctx context.Context, device *domain.
 }
 
 func (s *PostgresStorage) UpdateDevice(ctx context.Context, device *domain.Dispositivo) error {
-	_, err := s.db.Exec(ctx,
+	db := getTxOrPool(ctx, s.db)
+	_, err := db.Exec(ctx,
 		"UPDATE Dispositivo SET nome = $1, refresh_token = $2, refresh_token_expires_at = $3, ultimo_ip_visto = $4, ultimo_timestamp_visto = $5 WHERE id = $6",
 		device.Nome, device.RefreshToken, device.RefreshTokenExpiresAt, device.UltimoIPVisto, device.UltimoTimestampVisto, device.ID)
 	if err != nil {

@@ -22,6 +22,7 @@ type Server struct {
 	dirService              *usecase.DirectoryService
 	profileService          *usecase.ProfileService
 	roomAdminService        *usecase.RoomAdminService
+	roomMembershipService   *usecase.RoomMembershipService
 	roomInteractionsService *usecase.RoomInteractionService
 	syncService             *usecase.SyncService
 	systemService           *usecase.SystemService
@@ -36,6 +37,7 @@ func NewServer(port int,
 	authService *usecase.AuthService,
 	dirService *usecase.DirectoryService,
 	profileService *usecase.ProfileService,
+	roomMembershipService *usecase.RoomMembershipService,
 	roomAdminService *usecase.RoomAdminService,
 	roomInteractionsService *usecase.RoomInteractionService,
 	syncService *usecase.SyncService,
@@ -51,6 +53,7 @@ func NewServer(port int,
 		port:                    port,
 		profileService:          profileService,
 		roomAdminService:        roomAdminService,
+		roomMembershipService:   roomMembershipService,
 		roomInteractionsService: roomInteractionsService,
 		syncService:             syncService,
 		systemService:           systemService,
@@ -82,6 +85,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 		s.profileService,
 		s.syncService,
 		s.roomAdminService,
+		s.roomMembershipService,
 		s.roomInteractionsService,
 		s.idempotencyCache,
 	)

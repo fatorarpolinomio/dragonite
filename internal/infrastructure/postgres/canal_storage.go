@@ -9,7 +9,8 @@ import (
 )
 
 func (s *PostgresStorage) Create(ctx context.Context, roomID, userID string) (*domain.Canal, error) {
-	row := s.db.QueryRow(ctx,
+	db := getTxOrPool(ctx, s.db)
+	row := db.QueryRow(ctx,
 		"INSERT INTO Canal (id_canal, versao_canal, criador, created_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING id_canal, versao_canal, criador, created_at",
 		roomID, "11", userID)
 
@@ -51,7 +52,7 @@ func (s *PostgresStorage) GetByID(ctx context.Context, canalID string) (*domain.
 
 func (s *PostgresStorage) GetCanalEstadoAtual(ctx context.Context, canalID string) ([]domain.StateEntry, error) {
 	rows, err := s.db.Query(ctx,
-		"SELECT id_evento, tipo, content FROM Canal_Estado_Atual WHERE id_canal = $1",
+		"SELECT id_evento, tipo, state_key FROM Canal_Estado_Atual WHERE id_canal = $1",
 		canalID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get canal estado atual: %w", err)
@@ -74,12 +75,16 @@ func (s *PostgresStorage) GetCanalEstadoAtual(ctx context.Context, canalID strin
 }
 
 func (s *PostgresStorage) GetJoinRule(ctx context.Context, roomID string) (string, error) {
-	row := s.db.QueryRow(ctx,
-		"SELECT id_evento FROM Canal_Estado_Atual WHERE id_canal = $1 AND tipo = 'm.room.join_rules' LIMIT 1",
+	row := s.db.QueryRow(ctx, `
+        SELECT e.content->>'join_rule'
+        FROM Canal_Estado_Atual c
+        JOIN Evento e ON c.id_evento = e.id_evento
+        WHERE c.id_canal = $1 AND c.tipo = 'm.room.join_rules'
+        `,
 		roomID)
 
-	var eventID string
-	err := row.Scan(&eventID)
+	var rule string
+	err := row.Scan(&rule)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return "invite", nil
@@ -87,7 +92,7 @@ func (s *PostgresStorage) GetJoinRule(ctx context.Context, roomID string) (strin
 		return "", fmt.Errorf("failed to get join rule: %w", err)
 	}
 
-	return eventID, nil
+	return rule, nil
 }
 
 func (s *PostgresStorage) GetUserJoinedRooms(ctx context.Context, userID string) ([]string, error) {
@@ -111,7 +116,7 @@ func (s *PostgresStorage) GetUserJoinedRooms(ctx context.Context, userID string)
 	return roomIDs, nil
 }
 
-func (s *PostgresStorage) GetUserMembership(ctx context.Context, userID, roomID string) (string, error) {
+func (s *PostgresStorage) GetUserMembership(ctx context.Context, roomID, userID string) (string, error) {
 	row := s.db.QueryRow(ctx,
 		"SELECT membership_type FROM Canal_Membership WHERE id_usuario = $1 AND id_canal = $2",
 		userID, roomID)
@@ -142,9 +147,10 @@ func (s *PostgresStorage) GetStateEventID(ctx context.Context, canalID string, s
 	return eventID, true
 }
 
-func (s *PostgresStorage) UpsertMembership(ctx context.Context, userID, roomID, membership string) error {
+func (s *PostgresStorage) UpsertMembership(ctx context.Context, roomID, userID, membership string) error {
+	db := getTxOrPool(ctx, s.db)
 	// TODO: id_evento do upsert está vazio
-	_, err := s.db.Exec(ctx,
+	_, err := db.Exec(ctx,
 		"INSERT INTO Canal_Membership (id_canal, id_usuario, membership_type, id_evento) VALUES ($1, $2, $3, '') ON CONFLICT (id_canal, id_usuario) DO UPDATE SET membership_type = $3",
 		roomID, userID, membership)
 	if err != nil {
@@ -155,7 +161,8 @@ func (s *PostgresStorage) UpsertMembership(ctx context.Context, userID, roomID, 
 }
 
 func (s *PostgresStorage) UpsertCurrentState(ctx context.Context, canalID, stateType, stateKey, eventID string) error {
-	_, err := s.db.Exec(ctx,
+	db := getTxOrPool(ctx, s.db)
+	_, err := db.Exec(ctx,
 		"INSERT INTO Canal_Estado_Atual (id_canal, tipo, state_key, id_evento) VALUES ($1, $2, $3, $4) ON CONFLICT (id_canal, tipo, state_key) DO UPDATE SET id_evento = $4",
 		canalID, stateType, stateKey, eventID)
 	if err != nil {
@@ -166,9 +173,15 @@ func (s *PostgresStorage) UpsertCurrentState(ctx context.Context, canalID, state
 }
 
 func (s *PostgresStorage) GetAllPublic(ctx context.Context, offset, limit int) ([]domain.Canal, error) {
-	// TODO: não está filtrando por canais publicos
-	rows, err := s.db.Query(ctx,
-		"SELECT id_canal, versao_canal, criador, created_at FROM Canal ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+	db := getTxOrPool(ctx, s.db)
+	// NOTE: pega todos os canais onde join_rules é public
+	rows, err := db.Query(ctx, `
+	    SELECT id_canal, versao_canal, criador, created_at
+		FROM Canal c
+		INNER JOIN Canal_Estado_Atual e ON c.id_canal = e.id_canal
+		LEFT JOIN Evento e2 ON e.id_evento = e2.id_evento
+		WHERE e2.tipo = 'm.room.member' AND e2.content->>join_rules = 'public'
+	    ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public canals: %w", err)
@@ -188,13 +201,15 @@ func (s *PostgresStorage) GetAllPublic(ctx context.Context, offset, limit int) (
 }
 
 func (s *PostgresStorage) UpdateForwardExtremities(ctx context.Context, canalID string, extremeties []string) error {
-	_, err := s.db.Exec(ctx, "DELETE FROM Canal_Extremidades WHERE id_canal = $1", canalID)
+	db := getTxOrPool(ctx, s.db)
+	// TODO: filtrar por prevEventos
+	_, err := db.Exec(ctx, "DELETE FROM Canal_Extremidades WHERE id_canal = $1", canalID)
 	if err != nil {
 		return fmt.Errorf("failed to delete old extremities: %w", err)
 	}
 
 	for _, eventID := range extremeties {
-		_, err := s.db.Exec(ctx,
+		_, err := db.Exec(ctx,
 			"INSERT INTO Canal_Extremidades (id_canal, id_evento) VALUES ($1, $2)",
 			canalID, eventID)
 		if err != nil {
@@ -206,7 +221,8 @@ func (s *PostgresStorage) UpdateForwardExtremities(ctx context.Context, canalID 
 }
 
 func (s *PostgresStorage) GetForwardExtremities(ctx context.Context, canalID string) ([]string, error) {
-	rows, err := s.db.Query(ctx,
+	db := getTxOrPool(ctx, s.db)
+	rows, err := db.Query(ctx,
 		"SELECT id_evento FROM Canal_Extremidades WHERE id_canal = $1",
 		canalID)
 	if err != nil {
@@ -227,7 +243,8 @@ func (s *PostgresStorage) GetForwardExtremities(ctx context.Context, canalID str
 }
 
 func (s *PostgresStorage) SaveAlias(ctx context.Context, roomID, fullAlias string) error {
-	_, err := s.db.Exec(ctx,
+	db := getTxOrPool(ctx, s.db)
+	_, err := db.Exec(ctx,
 		"INSERT INTO Canal_Alias (id_canal, alias, id_evento) VALUES ($1, $2, '') ON CONFLICT (id_canal, alias) DO NOTHING",
 		roomID, fullAlias)
 	if err != nil {

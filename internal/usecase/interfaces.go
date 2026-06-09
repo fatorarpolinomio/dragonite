@@ -31,10 +31,10 @@ type CanalStorage interface {
 	// Get all room ids joined by a user
 	GetUserJoinedRooms(ctx context.Context, userID string) ([]string, error)
 	// Get a user membership state
-	GetUserMembership(ctx context.Context, userID, roomID string) (string, error)
+	GetUserMembership(ctx context.Context, roomID, userID string) (string, error)
 	// Get a room state event ID
 	GetStateEventID(ctx context.Context, canalID string, stateType, stateKey string) (string, bool)
-	UpsertMembership(ctx context.Context, userID, roomID, membership string) error
+	UpsertMembership(ctx context.Context, roomID, userID, membership string) error
 	UpsertCurrentState(ctx context.Context, canalID, stateType, stateKey, eventID string) error
 	GetAllPublic(ctx context.Context, offset, limit int) ([]domain.Canal, error)
 	UpdateForwardExtremities(ctx context.Context, canalID string, extremeties []string) error

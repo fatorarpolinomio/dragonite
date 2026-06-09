@@ -34,7 +34,7 @@ func buildJoinEvent(canalID string, sender string) *domain.Evento {
 	content := map[string]string{
 		"membership": "join",
 	}
-	return newBaseEvent(canalID, sender, string(types.Member), new(""), content)
+	return newBaseEvent(canalID, sender, string(types.Member), &sender, content)
 }
 
 func buildLeaveEvent(canalID string, sender string) *domain.Evento {

@@ -26,15 +26,21 @@ type Handler struct {
 	serverName            string
 }
 
-func NewHandler(serverName string, directoryService *usecase.DirectoryService,
-	roomAdminService *usecase.RoomAdminService, roomInteractions *usecase.RoomInteractionService,
-	idempotencyCache infrastructure.IdempotencyCache) *Handler {
+func NewHandler(
+	serverName string,
+	directoryService *usecase.DirectoryService,
+	roomAdminService *usecase.RoomAdminService,
+	roomMembershipService *usecase.RoomMembershipService,
+	roomInteractions *usecase.RoomInteractionService,
+	idempotencyCache infrastructure.IdempotencyCache,
+) *Handler {
 	return &Handler{
-		serverName:       serverName,
-		directoryService: directoryService,
-		roomAdminService: roomAdminService,
-		roomInteractions: roomInteractions,
-		idempotencyCache: idempotencyCache,
+		serverName:            serverName,
+		directoryService:      directoryService,
+		roomAdminService:      roomAdminService,
+		roomMembershipService: roomMembershipService,
+		roomInteractions:      roomInteractions,
+		idempotencyCache:      idempotencyCache,
 	}
 }
 

@@ -12,18 +12,20 @@ import (
 )
 
 type RoomInteractionService struct {
-	canalRepo  CanalStorage
-	eventoRepo EventoStorage
-	fedService FederationService
-	uow        WorkUnit
+	canalRepo        CanalStorage
+	eventoRepo       EventoStorage
+	fedService       FederationService
+	authRuleResolver *AuthRuleResolver
+	uow              WorkUnit
 }
 
-func NewRoomInteractionService(canalRepo CanalStorage, eventoRepo EventoStorage, fedService FederationService, uow WorkUnit) *RoomInteractionService {
+func NewRoomInteractionService(canalRepo CanalStorage, eventoRepo EventoStorage, fedService FederationService, authRuleResolver *AuthRuleResolver, uow WorkUnit) *RoomInteractionService {
 	return &RoomInteractionService{
-		canalRepo:  canalRepo,
-		eventoRepo: eventoRepo,
-		fedService: fedService,
-		uow:        uow,
+		canalRepo:        canalRepo,
+		eventoRepo:       eventoRepo,
+		fedService:       fedService,
+		authRuleResolver: authRuleResolver,
+		uow:              uow,
 	}
 }
 
@@ -66,7 +68,7 @@ func (s *RoomInteractionService) SendStateEvent(ctx context.Context, params Stat
 	}
 
 	// 3. Resolve DAG Dependencies (The Timeline and the VIP Pass)
-	prevs, auths, err := s.resolveEventDependencies(ctx, params.RoomID, params.UserID, params.EventType)
+	prevs, auths, err := s.authRuleResolver.ResolveEventDependencies(ctx, params.RoomID, params.UserID, params.EventType, &params.StateKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve DAG dependencies: %w", err)
 	}
@@ -89,7 +91,6 @@ func (s *RoomInteractionService) SendStateEvent(ctx context.Context, params Stat
 	// 5. ATOMIC DATABASE TRANSACTION (The 3-Step State Update)
 	err = s.uow.Execute(ctx, func(txCtx context.Context) error {
 		// A. Save the historical event payload to the DAG
-		// NOTE: should be upsert, if room_id, event_type and state_key all match, update, else insert
 		if err := s.eventoRepo.SaveEvento(txCtx, newEvent); err != nil {
 			return err
 		}
@@ -144,7 +145,7 @@ func (s *RoomInteractionService) SendEvent(ctx context.Context, params EventPara
 	}
 
 	// 3. Resolve DAG Dependencies (The VIP Pass and the Timeline)
-	prevs, auths, err := s.resolveEventDependencies(ctx, params.RoomID, params.SenderID, params.EventType)
+	prevs, auths, err := s.authRuleResolver.ResolveEventDependencies(ctx, params.RoomID, params.SenderID, params.EventType, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve DAG dependencies: %w", err)
 	}
@@ -192,51 +193,4 @@ func (s *RoomInteractionService) SendEvent(ctx context.Context, params EventPara
 	_ = s.fedService.QueueOutgoing(ctx, *newEvent)
 
 	return eventID, nil
-}
-
-func (s *RoomInteractionService) resolveEventDependencies(
-	ctx context.Context,
-	roomID, sender string,
-	eventType string,
-) ([]string, []string, error) {
-
-	// 1. Resolve PrevEvents (The tips of the DAG)
-	// This is simply querying the room_forward_extremities table.
-	prevEvents, err := s.canalRepo.GetForwardExtremities(ctx, roomID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get extremities: %w", err)
-	}
-
-	// 2. Resolve AuthEvents (The VIP Pass)
-	// The exact state events needed change based on what kind of event is being sent.
-	// But almost ALL events require at least the create, power_levels, and sender's membership.
-
-	authEvents := make([]string, 0)
-
-	// Helper to fetch and append state safely
-	appendState := func(stateType, stateKey string) {
-		if eventID, found := s.canalRepo.GetStateEventID(ctx, roomID, stateType, stateKey); found {
-			authEvents = append(authEvents, eventID)
-		}
-	}
-
-	// ALWAYS REQUIRED: The room creation event
-	appendState("m.room.create", "")
-
-	// ALWAYS REQUIRED: The room power levels
-	appendState("m.room.power_levels", "")
-
-	// ALWAYS REQUIRED: The sender's membership (proving they are in the room)
-	appendState("m.room.member", sender)
-
-	// CONDITIONAL: If they are inviting someone, we also need the invitee's current membership state
-	if eventType == "m.room.member" {
-		// (Assuming you passed the target stateKey into this function)
-		// appendState("m.room.member", targetUserID)
-
-		// And we need the join_rules to see if invites are allowed
-		appendState("m.room.join_rules", "")
-	}
-
-	return prevEvents, authEvents, nil
 }

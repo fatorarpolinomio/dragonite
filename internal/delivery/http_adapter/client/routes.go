@@ -23,6 +23,7 @@ type Handler struct {
 	profileService   *usecase.ProfileService
 	authService      *usecase.AuthService
 	roomAdmin        *usecase.RoomAdminService
+	roomMembership   *usecase.RoomMembershipService
 	roomInteractions *usecase.RoomInteractionService
 	idempotencyCache infrastructure.IdempotencyCache
 	serverName       string
@@ -36,6 +37,7 @@ func NewHandler(
 	profileStore *usecase.ProfileService,
 	syncStore *usecase.SyncService,
 	roomAdmin *usecase.RoomAdminService,
+	roomMembership *usecase.RoomMembershipService,
 	roomInteractions *usecase.RoomInteractionService,
 	idempotencyCache infrastructure.IdempotencyCache,
 ) *Handler {
@@ -46,6 +48,7 @@ func NewHandler(
 		profileService:   profileStore,
 		syncService:      syncStore,
 		roomAdmin:        roomAdmin,
+		roomMembership:   roomMembership,
 		roomInteractions: roomInteractions,
 		authService:      authService,
 		idempotencyCache: idempotencyCache,
@@ -61,7 +64,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	auth.RegisterRoutes(mux, authMiddleware)
 
 	// chats e manipulação de salas
-	roomHandler := rooms.NewHandler(h.serverName, h.directoryService, h.roomAdmin, h.roomInteractions, h.idempotencyCache)
+	roomHandler := rooms.NewHandler(h.serverName, h.directoryService, h.roomAdmin, h.roomMembership, h.roomInteractions, h.idempotencyCache)
 	roomHandler.RegisterRoutes(mux, authMiddleware)
 
 	profileHandler := profile.NewHandler(h.profileService)
