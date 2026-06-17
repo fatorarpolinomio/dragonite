@@ -3,6 +3,7 @@ package config
 import (
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -16,7 +17,7 @@ type AppConfig struct {
 	Version       string `env:"VERSION"`
 	JWTToken      string `env:"JWT_TOKEN"`
 	KeyID         string `env:"KEY_ID"`
-	DatabaseURL   string `env:"DATABASE_URL"`
+	DatabaseURL   string
 	RedisHost     string `env:"REDIS_HOST"`
 	RedisPort     int    `env:"REDIS_PORT"`
 	RedisPassword string `env:"REDIS_PASSWORD"`
@@ -36,10 +37,6 @@ func LoadConfig() (*AppConfig, error) {
 
 	if os.Getenv("SERVER_NAME") == "" {
 		return nil, errors.New("SERVER_NAME variable is not set")
-	}
-
-	if os.Getenv("DATABASE_URL") == "" {
-		return nil, errors.New("DATABASE_URL variable is not set")
 	}
 
 	if os.Getenv("VERSION") == "" {
@@ -67,6 +64,15 @@ func LoadConfig() (*AppConfig, error) {
 		return nil, errors.New("REDIS_PASSWORD variable is not set")
 	}
 
+	databaseUrl := fmt.Sprintf(
+		"user=%s password=%s host=%s port=%s dbname=%s",
+		os.Getenv("DRAGONITE_DB_USERNAME"),
+		os.Getenv("DRAGONITE_DB_PASSWORD"),
+		os.Getenv("DRAGONITE_DB_HOST"),
+		os.Getenv("DRAGONITE_DB_PORT"),
+		os.Getenv("DRAGONITE_DB_DATABASE"),
+	)
+
 	key, pubKey, privKey, err := util.GenerateServerKey(os.Getenv("SERVER_NAME"), os.Getenv("VERSION"))
 	if err != nil {
 		return nil, err
@@ -77,7 +83,7 @@ func LoadConfig() (*AppConfig, error) {
 		ServerPort:    port,
 		Version:       os.Getenv("VERSION"),
 		JWTToken:      os.Getenv("JWT_TOKEN"),
-		DatabaseURL:   os.Getenv("DATABASE_URL"),
+		DatabaseURL:   databaseUrl,
 		RedisHost:     os.Getenv("REDIS_HOST"),
 		RedisPort:     redis_port,
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
