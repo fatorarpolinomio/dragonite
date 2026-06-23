@@ -6,19 +6,19 @@ import (
 
 type Evento struct {
 	ID               string          `json:"id"`
-	Tipo             string          `json:"tipo"`
+	Tipo             string          `json:"type"`
 	Content          json.RawMessage `json:"content"`
-	CanalID          string          `json:"canal_id"`
+	CanalID          string          `json:"room_id"`
 	Sender           string          `json:"sender"`
-	OrigemServidorTS int64           `json:"origem_servidor_ts"`
+	OrigemServidorTS int64           `json:"origin_server_ts"`
 
 	StreamOrdering int64 `json:"-"` // NOTE: campo interno, não deve ser exposto ao cliente
 
 	StateKey *string `json:"state_key"`
 	Redacts  string  `json:"redacts"`
 
-	PrevEventos []string `json:"prev_eventos"`
-	AuthEventos []string `json:"auth_eventos"`
+	PrevEventos []string `json:"prev_events"`
+	AuthEventos []string `json:"auth_events"`
 	Depth       int64    `json:"depth"`
 
 	Hashes     json.RawMessage `json:"hashes"`
