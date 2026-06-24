@@ -47,7 +47,7 @@ func main() {
 	// cria usecases
 	authService := usecase.NewAuthService(config.JWTToken, config.ServerName, storage, storage)
 	authRuleResolver := usecase.NewAuthRuleResolver(storage)
-	dirService := usecase.NewDirectoryService(storage, storage)
+	dirService := usecase.NewDirectoryService(storage, storage, storage)
 	fedService := usecase.NewFederationService(config.ServerName, config.KeyID, config.PrivateKey, storage, storage, storage)
 	profileService := usecase.NewProfileService(storage)
 	roomAdminService := usecase.NewRoomAdminService(config.ServerName, config.KeyID, config.PrivateKey, storage, fedService, storage, storage, storage)

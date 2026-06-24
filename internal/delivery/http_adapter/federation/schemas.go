@@ -39,3 +39,18 @@ type StateResponse struct {
 	AuthChain []domain.Evento `json:"auth_chain"`
 	PDUs      []domain.Evento `json:"pdus"`
 }
+
+// publicRooms
+
+type PublicRoomsFilter struct {
+    GenericSearchTerm string    `json:"generic_search_term,omitempty"`
+    RoomTypes         []*string `json:"room_types,omitempty"`
+}
+
+type PublicRoomsRequest struct {
+    Filter               *PublicRoomsFilter `json:"filter,omitempty"`
+    IncludeAllNetworks   bool               `json:"include_all_networks,omitempty"`
+    Limit                int                `json:"limit,omitempty"`
+    Since                string             `json:"since,omitempty"`
+    ThirdPartyInstanceID string             `json:"third_party_instance_id,omitempty"`
+}

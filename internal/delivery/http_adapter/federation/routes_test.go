@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+    "strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func (s *fakeSystemStorage) PingDB() map[string]string {
 func TestFederationGetVersion(t *testing.T) {
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	sys := usecase.NewSystemService("example.com", "1.0.0", pub, priv, "ed25519:1", &fakeSystemStorage{})
-	h := NewHandler(sys, nil, nil, nil)
+	h := NewHandler(sys, nil, nil, nil, nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/_matrix/federation/v1/version", nil)
@@ -48,7 +49,7 @@ func TestFederationGetVersion(t *testing.T) {
 func TestFederationGetServerKeySignature(t *testing.T) {
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	sys := usecase.NewSystemService("example.com", "1.0.0", pub, priv, "ed25519:1", &fakeSystemStorage{})
-	h := NewHandler(sys, nil, nil, nil)
+	h := NewHandler(sys, nil, nil, nil, nil)
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/_matrix/key/v2/server", nil)
@@ -123,7 +124,7 @@ func newTestHandlerWithProfile(t *testing.T, storage *fakeUsuarioStorage) *Handl
     pub, priv, _ := ed25519.GenerateKey(rand.Reader)
     sys := usecase.NewSystemService("dragonite.com", "1.0.0", pub, priv, "ed25519:1", &fakeSystemStorage{})
     profileSvc := usecase.NewProfileService(storage)
-    return NewHandler(sys, nil, nil, profileSvc)
+    return NewHandler(sys, nil, nil, profileSvc, nil)
 }
 
 func TestGetProfile_MissingUserID(t *testing.T) {
@@ -267,5 +268,184 @@ func TestGetProfile_OnlyAvatarURL(t *testing.T) {
     }
     if body.DisplayName != nil {
         t.Errorf("expected displayname absent, got %v", *body.DisplayName)
+    }
+}
+
+// fakeDirectoryStorage implementa usecase.DirectoryStorage para testes
+type fakeDirectoryStorage struct {
+    entries []domain.PublicRoomEntry
+    total   int
+}
+
+func (f *fakeDirectoryStorage) SearchDirectory(_ context.Context, _ string, limit, offset int) ([]domain.PublicRoomEntry, int, error) {
+    if offset >= len(f.entries) {
+        return []domain.PublicRoomEntry{}, f.total, nil
+    }
+    result := f.entries[offset:]
+    if limit > 0 && len(result) > limit {
+        result = result[:limit]
+    }
+    return result, f.total, nil
+}
+
+func newTestHandlerWithDir(t *testing.T, storage *fakeDirectoryStorage) *Handler {
+    t.Helper()
+    pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+    sys := usecase.NewSystemService("dragonite.com", "1.0.0", pub, priv, "ed25519:1", &fakeSystemStorage{})
+    dirSvc := usecase.NewDirectoryService(storage, nil, nil)
+    return NewHandler(sys, nil, nil, nil, dirSvc)
+}
+
+func TestGetPublicRooms_Empty(t *testing.T) {
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{total: 0})
+
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/_matrix/federation/v1/publicRooms", nil)
+    h.getPublicRooms(rec, req)
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d", rec.Code)
+    }
+
+    var body domain.PublicRoomsChunck
+    if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+        t.Fatalf("decode: %v", err)
+    }
+    if len(body.Chunk) != 0 {
+        t.Errorf("expected empty chunk, got %d items", len(body.Chunk))
+    }
+    if body.NextBatch != "" {
+        t.Errorf("expected no next_batch, got %q", body.NextBatch)
+    }
+}
+
+func TestGetPublicRooms_WithRooms(t *testing.T) {
+    name1 := "General"
+    entries := []domain.PublicRoomEntry{
+        {RoomID: "!room1:dragonite.com", Name: &name1, NumJoinedMembers: 10, GuestCanJoin: true, WorldReadable: true},
+        {RoomID: "!room2:dragonite.com", NumJoinedMembers: 3},
+    }
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{entries: entries, total: 2})
+
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/_matrix/federation/v1/publicRooms", nil)
+    h.getPublicRooms(rec, req)
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d", rec.Code)
+    }
+
+    var body domain.PublicRoomsChunck
+    if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+        t.Fatalf("decode: %v", err)
+    }
+    if len(body.Chunk) != 2 {
+        t.Fatalf("expected 2 rooms, got %d", len(body.Chunk))
+    }
+    if body.Chunk[0].RoomID != "!room1:dragonite.com" {
+        t.Errorf("expected room1 first, got %s", body.Chunk[0].RoomID)
+    }
+    if !body.Chunk[0].GuestCanJoin {
+        t.Error("expected guest_can_join true")
+    }
+}
+
+func TestGetPublicRooms_Pagination(t *testing.T) {
+    entries := []domain.PublicRoomEntry{
+        {RoomID: "!r1:dragonite.com", NumJoinedMembers: 3},
+        {RoomID: "!r2:dragonite.com", NumJoinedMembers: 2},
+        {RoomID: "!r3:dragonite.com", NumJoinedMembers: 1},
+    }
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{entries: entries, total: 3})
+
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/_matrix/federation/v1/publicRooms?limit=2", nil)
+    h.getPublicRooms(rec, req)
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d", rec.Code)
+    }
+
+    var body domain.PublicRoomsChunck
+    if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+        t.Fatalf("decode: %v", err)
+    }
+    if len(body.Chunk) != 2 {
+        t.Fatalf("expected 2 rooms, got %d", len(body.Chunk))
+    }
+    if body.NextBatch == "" {
+        t.Error("expected next_batch to be set")
+    }
+    if body.PrevBatch != "" {
+        t.Errorf("expected no prev_batch on first page, got %q", body.PrevBatch)
+    }
+}
+
+func TestPostPublicRooms_BadJSON(t *testing.T) {
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{})
+
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodPost, "/_matrix/federation/v1/publicRooms",
+        strings.NewReader("{invalid}"))
+    h.postPublicRooms(rec, req)
+
+    if rec.Code != http.StatusBadRequest {
+        t.Fatalf("expected 400, got %d", rec.Code)
+    }
+}
+
+func TestPostPublicRooms_WithFilter(t *testing.T) {
+    cheeseRoom := "Cheese Lovers"
+    entries := []domain.PublicRoomEntry{
+        {RoomID: "!cheese:dragonite.com", Name: &cheeseRoom, NumJoinedMembers: 10},
+    }
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{entries: entries, total: 1})
+
+    body, _ := json.Marshal(PublicRoomsRequest{
+        Filter: &PublicRoomsFilter{GenericSearchTerm: "cheese"},
+        Limit:  10,
+    })
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodPost, "/_matrix/federation/v1/publicRooms",
+        strings.NewReader(string(body)))
+    h.postPublicRooms(rec, req)
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d", rec.Code)
+    }
+
+    var resp domain.PublicRoomsChunck
+    if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+        t.Fatalf("decode: %v", err)
+    }
+    if len(resp.Chunk) != 1 {
+        t.Fatalf("expected 1 room, got %d", len(resp.Chunk))
+    }
+    if resp.Chunk[0].RoomID != "!cheese:dragonite.com" {
+        t.Errorf("expected cheese room, got %s", resp.Chunk[0].RoomID)
+    }
+}
+
+func TestPostPublicRooms_EmptyBody(t *testing.T) {
+    entries := []domain.PublicRoomEntry{
+        {RoomID: "!r1:dragonite.com", NumJoinedMembers: 5},
+    }
+    h := newTestHandlerWithDir(t, &fakeDirectoryStorage{entries: entries, total: 1})
+
+    rec := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodPost, "/_matrix/federation/v1/publicRooms",
+        strings.NewReader("{}"))
+    h.postPublicRooms(rec, req)
+
+    if rec.Code != http.StatusOK {
+        t.Fatalf("expected 200, got %d", rec.Code)
+    }
+
+    var resp domain.PublicRoomsChunck
+    if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+        t.Fatalf("decode: %v", err)
+    }
+    if len(resp.Chunk) != 1 {
+        t.Fatalf("expected 1 room, got %d", len(resp.Chunk))
     }
 }

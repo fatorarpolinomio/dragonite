@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,14 +21,16 @@ type Handler struct {
 	fedService             *usecase.FederationService
 	roomInteractionService *usecase.RoomInteractionService
 	profileService         *usecase.ProfileService
+	dirService             *usecase.DirectoryService
 }
 
-func NewHandler(sysService *usecase.SystemService, fedService *usecase.FederationService, roomInteractionService *usecase.RoomInteractionService, profileService *usecase.ProfileService) *Handler {
+func NewHandler(sysService *usecase.SystemService, fedService *usecase.FederationService, roomInteractionService *usecase.RoomInteractionService, profileService *usecase.ProfileService, dirService *usecase.DirectoryService) *Handler {
 	return &Handler{
 		sysService:             sysService,
 		fedService:             fedService,
 		roomInteractionService: roomInteractionService,
 		profileService:         profileService,
+		dirService:             dirService,
 	}
 }
 
@@ -43,7 +46,11 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// retrieve missing events
 	mux.HandleFunc("GET /_matrix/federation/v1/backfill/{roomId}", h.getBackfill)
 	mux.HandleFunc("GET /_matrix/federation/v1/event/{eventId}", h.getEvent)
+
+	mux.HandleFunc("GET /_matrix/federation/v1/publicRooms", h.getPublicRooms)
+    mux.HandleFunc("POST /_matrix/federation/v1/publicRooms", h.postPublicRooms)
 }
+
 
 func (h *Handler) getVersion(w http.ResponseWriter, r *http.Request) {
 	res := VersionResponse{}
@@ -233,4 +240,60 @@ func (h *Handler) getBackfill(w http.ResponseWriter, r *http.Request) {
 
 	httputil.WriteJSON(w, http.StatusOK, res)
 
+}
+
+func (h *Handler) getPublicRooms(w http.ResponseWriter, r *http.Request) {
+    q := r.URL.Query()
+
+    limit := 0
+    if s := q.Get("limit"); s != "" {
+        if v, err := strconv.Atoi(s); err == nil && v > 0 {
+            limit = v
+        }
+    }
+
+    offset := 0
+    if since := q.Get("since"); since != "" {
+        if v, err := strconv.Atoi(since); err == nil && v > 0 {
+            offset = v
+        }
+    }
+
+    h.writePublicRooms(w, r, "", limit, offset)
+}
+
+func (h *Handler) postPublicRooms(w http.ResponseWriter, r *http.Request) {
+    var req PublicRoomsRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        httputil.WriteMatrixError(w, http.StatusBadRequest, httputil.M_BAD_JSON, err.Error())
+        return
+    }
+
+    searchTerm := ""
+    if req.Filter != nil {
+        searchTerm = req.Filter.GenericSearchTerm
+    }
+
+    offset := 0
+    if req.Since != "" {
+        if v, err := strconv.Atoi(req.Since); err == nil && v > 0 {
+            offset = v
+        }
+    }
+
+    h.writePublicRooms(w, r, searchTerm, req.Limit, offset)
+}
+
+// writePublicRooms contém a lógica compartilhada entre GET e POST
+func (h *Handler) writePublicRooms(w http.ResponseWriter, r *http.Request, searchTerm string, limit, offset int) {
+    ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+    defer cancel()
+
+    result, err := h.dirService.ListPublic(ctx, searchTerm, limit, offset)
+    if err != nil {
+        httputil.WriteMatrixError(w, http.StatusInternalServerError, httputil.M_UNKNOWN, err.Error())
+        return
+    }
+
+    httputil.WriteJSON(w, http.StatusOK, result)
 }

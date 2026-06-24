@@ -14,29 +14,50 @@ type DirectoryService struct {
 	canalStore CanalStorage
 }
 
-func NewDirectoryService(userStore UsuarioStorage, canalStore CanalStorage) *DirectoryService {
+func NewDirectoryService(dirStore DirectoryStorage, userStore UsuarioStorage, canalStore CanalStorage) *DirectoryService {
 	return &DirectoryService{
+		dirStore:   dirStore,
 		userStore:  userStore,
 		canalStore: canalStore,
 	}
 }
 
 func (s *DirectoryService) ListPublic(ctx context.Context, term string, limit int, offset int) (*domain.PublicRoomsChunck, error) {
-	if limit < 0 || limit > 100 {
+	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-
-	entries, totalCount, err := s.dirStore.SearchDirectory(ctx, term, limit, offset)
+	// busca limit+1 para detectar se há próxima página
+    entries, totalCount, err := s.dirStore.SearchDirectory(ctx, term, limit+1, offset)
 	if err != nil {
 		return nil, err
 	}
 
-	response := domain.PublicRoomsChunck{
-		Chunk:                  entries,
-		TotalRoomCountEstimate: totalCount,
-		NextBatch:              fmt.Sprintf("%d", len(entries)+offset),
-		PrevBatch:              fmt.Sprintf("%d", offset),
-	}
+	hasMore := len(entries) > limit
+    if hasMore {
+        entries = entries[:limit]
+    }
+
+    // Garante que chunk nunca seja null no JSON
+    if entries == nil {
+        entries = []domain.PublicRoomEntry{}
+    }
+
+    response := domain.PublicRoomsChunck{
+        Chunk:                  entries,
+        TotalRoomCountEstimate: totalCount,
+    }
+
+    if hasMore {
+        response.NextBatch = fmt.Sprintf("%d", offset+limit)
+    }
+    // PrevBatch só aparece se não estivermos na primeira página
+    if offset > 0 {
+        prev := offset - limit
+        if prev < 0 {
+            prev = 0
+        }
+        response.PrevBatch = fmt.Sprintf("%d", prev)
+    }
 
 	return &response, nil
 }
