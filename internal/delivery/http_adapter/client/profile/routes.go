@@ -18,14 +18,16 @@ func NewHandler(profileService *usecase.ProfileService) *Handler {
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Middleware) {
 
+	//
+	mux.HandleFunc("GET /_matrix/client/v3/profile/{userId}", h.getProfile)
 	// Chave do perfil do usuário
-	mux.HandleFunc("GET /_matrix/client/v3/profile/{userId}/keys", h.getProfileKey)
+	mux.HandleFunc("GET /_matrix/client/v3/profile/{userId}/{keyName}", h.getProfileKey)
 
 	// Alterar chave do perfil do usuário
-	mux.Handle("PUT /_matrix/client/v3/profile/{userId}/keys", authMiddleware(http.HandlerFunc(h.putProfileKey)))
+	mux.Handle("PUT /_matrix/client/v3/profile/{userId}/{keyName}", authMiddleware(http.HandlerFunc(h.putProfileKey)))
 
 	// Remover chave do perfil do usuário
-	mux.Handle("DELETE /_matrix/client/v3/profile/{userId}/keys", authMiddleware(http.HandlerFunc(h.deleteProfileKey)))
+	mux.Handle("DELETE /_matrix/client/v3/profile/{userId}/{keyName}", authMiddleware(http.HandlerFunc(h.deleteProfileKey)))
 
 }
 
@@ -76,11 +78,12 @@ func (h *Handler) getProfileKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var valor *string
-	if keyName == "displayname" {
+	switch keyName {
+	case "displayname":
 		valor = usuario.DisplayName
-	} else if keyName == "avatar_url" {
+	case "avatar_url":
 		valor = usuario.AvatarURL
-	} else {
+	default:
 		// Se pediu uma chave que não existe no Matrix
 		httputil.WriteMatrixError(w, http.StatusBadRequest,
 			"M_BAD_JSON",

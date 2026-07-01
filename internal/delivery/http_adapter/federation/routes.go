@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/httputil"
@@ -31,9 +33,11 @@ type Handler struct {
 	profileService         *usecase.ProfileService
 	dirService             *usecase.DirectoryService
 	keyFetcher             KeyFetcherFn
+	serverName             string
+	keyCache               sync.Map // map["origin/keyID"]ed25519.PublicKey
 }
 
-func NewHandler(sysService *usecase.SystemService, fedService *usecase.FederationService, roomInteractionService *usecase.RoomInteractionService, profileService *usecase.ProfileService, dirService *usecase.DirectoryService, keyFetcher KeyFetcherFn) *Handler {
+func NewHandler(sysService *usecase.SystemService, fedService *usecase.FederationService, roomInteractionService *usecase.RoomInteractionService, profileService *usecase.ProfileService, dirService *usecase.DirectoryService, keyFetcher KeyFetcherFn, serverName string) *Handler {
 	return &Handler{
 		sysService:             sysService,
 		fedService:             fedService,
@@ -41,32 +45,28 @@ func NewHandler(sysService *usecase.SystemService, fedService *usecase.Federatio
 		profileService:         profileService,
 		dirService:             dirService,
 		keyFetcher:             keyFetcher,
+		serverName:             serverName,
 	}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+	// Public endpoints — no X-Matrix auth required
 	mux.HandleFunc("GET /_matrix/federation/v1/version", h.getVersion)
 	mux.HandleFunc("GET /_matrix/key/v2/server", h.getServerKey)
-	mux.HandleFunc("GET /_matrix/federation/v1/query/profile", h.getProfile)
 
-	mux.HandleFunc("PUT /_matrix/federation/v2/invite/{roomId}/{eventId}", h.putInvite)
+	auth := h.xMatrixMiddleware
 
-	// TODO: include authentication for all this endpoints
-	// receive transactions
-	mux.HandleFunc("PUT /_matrix/federation/v1/send/{txnId}", h.putSendTxn)
-
-	// retrieve missing events
-	mux.HandleFunc("GET /_matrix/federation/v1/backfill/{roomId}", h.getBackfill)
-	mux.HandleFunc("GET /_matrix/federation/v1/event/{eventId}", h.getEvent)
-
-	mux.HandleFunc("GET /_matrix/federation/v1/publicRooms", h.getPublicRooms)
-	mux.HandleFunc("POST /_matrix/federation/v1/publicRooms", h.postPublicRooms)
-
-	mux.HandleFunc("GET /_matrix/federation/v1/make_join/{roomId}/{userId}", h.makeJoin)
-	mux.HandleFunc("PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}", h.sendJoin)
-
-	mux.HandleFunc("GET /_matrix/federation/v1/make_leave/{roomId}/{userId}", h.makeLeave)
-	mux.HandleFunc("PUT /_matrix/federation/v2/send_leave/{roomId}/{eventId}", h.sendLeave)
+	mux.Handle("GET /_matrix/federation/v1/query/profile", auth(http.HandlerFunc(h.getProfile)))
+	mux.Handle("PUT /_matrix/federation/v2/invite/{roomId}/{eventId}", auth(http.HandlerFunc(h.putInvite)))
+	mux.Handle("PUT /_matrix/federation/v1/send/{txnId}", auth(http.HandlerFunc(h.putSendTxn)))
+	mux.Handle("GET /_matrix/federation/v1/backfill/{roomId}", auth(http.HandlerFunc(h.getBackfill)))
+	mux.Handle("GET /_matrix/federation/v1/event/{eventId}", auth(http.HandlerFunc(h.getEvent)))
+	mux.Handle("GET /_matrix/federation/v1/publicRooms", auth(http.HandlerFunc(h.getPublicRooms)))
+	mux.Handle("POST /_matrix/federation/v1/publicRooms", auth(http.HandlerFunc(h.postPublicRooms)))
+	mux.Handle("GET /_matrix/federation/v1/make_join/{roomId}/{userId}", auth(http.HandlerFunc(h.makeJoin)))
+	mux.Handle("PUT /_matrix/federation/v2/send_join/{roomId}/{eventId}", auth(http.HandlerFunc(h.sendJoin)))
+	mux.Handle("GET /_matrix/federation/v1/make_leave/{roomId}/{userId}", auth(http.HandlerFunc(h.makeLeave)))
+	mux.Handle("PUT /_matrix/federation/v2/send_leave/{roomId}/{eventId}", auth(http.HandlerFunc(h.sendLeave)))
 }
 
 func (h *Handler) getVersion(w http.ResponseWriter, r *http.Request) {
@@ -147,14 +147,119 @@ func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, profile)
 }
 
+// parseXMatrixHeader decompõe o cabeçalho Authorization: X-Matrix k="v",... num map.
+func parseXMatrixHeader(header string) (map[string]string, error) {
+	const prefix = "X-Matrix "
+	if !strings.HasPrefix(header, prefix) {
+		return nil, fmt.Errorf("not X-Matrix authorization")
+	}
+	result := map[string]string{}
+	for part := range strings.SplitSeq(strings.TrimPrefix(header, prefix), ",") {
+		before, after, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		k := strings.TrimSpace(before)
+		v := strings.Trim(strings.TrimSpace(after), `"`)
+		result[k] = v
+	}
+	return result, nil
+}
+
+// xMatrixMiddleware valida o cabeçalho Authorization: X-Matrix em requisições de federação.
+func (h *Handler) xMatrixMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params, err := parseXMatrixHeader(r.Header.Get("Authorization"))
+		if err != nil {
+			httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "missing or invalid X-Matrix authorization")
+			return
+		}
+
+		origin := params["origin"]
+		keyID := params["key"]
+		sig := params["sig"]
+		destination := params["destination"]
+
+		if origin == "" || keyID == "" || sig == "" {
+			httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "incomplete X-Matrix header")
+			return
+		}
+
+		if destination != "" && destination != h.serverName {
+			httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "X-Matrix destination mismatch")
+			return
+		}
+
+		// Lê e restaura o body para o handler downstream
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			httputil.WriteMatrixError(w, http.StatusInternalServerError, httputil.M_UNKNOWN, "failed to read request body")
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+
+		// Monta o objeto canônico que foi assinado pelo servidor de origem
+		signObj := map[string]any{
+			"method":      r.Method,
+			"uri":         r.RequestURI,
+			"origin":      origin,
+			"destination": h.serverName,
+		}
+		if len(body) > 0 {
+			var content any
+			if err := json.Unmarshal(body, &content); err != nil {
+				httputil.WriteMatrixError(w, http.StatusBadRequest, httputil.M_BAD_JSON, "invalid JSON body")
+				return
+			}
+			signObj["content"] = content
+		}
+
+		canonical, err := util.CanonicalJSON(signObj)
+		if err != nil {
+			httputil.WriteMatrixError(w, http.StatusInternalServerError, httputil.M_UNKNOWN, "failed to canonicalize sign object")
+			return
+		}
+
+		// Busca chave pública do servidor de origem (com cache)
+		cacheKey := origin + "/" + keyID
+		var pubKey ed25519.PublicKey
+		if v, ok := h.keyCache.Load(cacheKey); ok {
+			pubKey = v.(ed25519.PublicKey)
+		} else {
+			fetchedKeyID, fetchedKey, err := h.keyFetcher(origin)
+			if err != nil {
+				httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "failed to fetch server key")
+				return
+			}
+			if fetchedKeyID != keyID {
+				httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "key ID mismatch")
+				return
+			}
+			h.keyCache.Store(cacheKey, fetchedKey)
+			pubKey = fetchedKey
+		}
+
+		sigBytes, err := base64.RawStdEncoding.DecodeString(sig)
+		if err != nil {
+			httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "invalid signature encoding")
+			return
+		}
+
+		if !ed25519.Verify(pubKey, canonical, sigBytes) {
+			httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_UNAUTHORIZED, "X-Matrix signature verification failed")
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (h *Handler) putSendTxn(w http.ResponseWriter, r *http.Request) {
 	txnID := r.PathValue("txnId")
 	if txnID == "" {
 		httputil.WriteMatrixError(w, http.StatusBadRequest, httputil.M_BAD_JSON, "Missing txn ID")
 		return
 	}
-
-	// TODO: validar o S2S, ler o X-Matrix, buscar a chave publica e autenticar
 
 	var req TransactionRequest
 	if err := httputil.ParseBody(r, &req); err != nil {

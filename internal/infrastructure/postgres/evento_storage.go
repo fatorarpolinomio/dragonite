@@ -98,8 +98,8 @@ func (s *PostgresStorage) GetEventsSince(ctx context.Context, roomID string, lim
 			JOIN dag_backfill db ON e.id_evento = ANY(db.prev_eventos)
 			WHERE db.distance < $3
 		)
-		SELECT id_evento, tipo, id_canal, sender, origin_server_ts, content, stream_ordering, state_key
-		FROM Evento
+		SELECT id_evento, tipo, id_canal, sender, origin_server_ts, content, stream_ordering, state_key, prev_eventos, auth_eventos, depth
+		FROM dag_backfill
 		ORDER BY depth DESC, distance ASC
 		LIMIT $3;
 	`
@@ -144,38 +144,38 @@ func (s *PostgresStorage) GetEvento(ctx context.Context, eventID string) (*domai
 }
 
 func (s *PostgresStorage) GetCurrentStateEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
-    query := `
+	query := `
         SELECT e.id_evento, e.tipo, e.id_canal, e.sender, e.origin_server_ts,
                e.content, e.state_key, e.prev_eventos, e.auth_eventos, e.depth
         FROM Canal_Estado_Atual cea
         JOIN Evento e ON e.id_evento = cea.id_evento
         WHERE cea.id_canal = $1`
 
-    rows, err := s.db.Query(ctx, query, roomID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get current state events: %w", err)
-    }
-    defer rows.Close()
+	rows, err := s.db.Query(ctx, query, roomID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current state events: %w", err)
+	}
+	defer rows.Close()
 
-    var eventos []domain.Evento
-    for rows.Next() {
-        var event domain.Evento
-        var stateKey sql.NullString
-        err := rows.Scan(
-            &event.ID, &event.Tipo, &event.CanalID, &event.Sender,
-            &event.OrigemServidorTS, &event.Content, &stateKey,
-            pq.Array(&event.PrevEventos), pq.Array(&event.AuthEventos), &event.Depth,
-        )
-        if err != nil {
-            return nil, fmt.Errorf("failed to scan state event: %w", err)
-        }
-        if stateKey.Valid {
-            event.StateKey = &stateKey.String
-        }
-        eventos = append(eventos, event)
-    }
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("rows error: %w", err)
-    }
-    return eventos, nil
+	var eventos []domain.Evento
+	for rows.Next() {
+		var event domain.Evento
+		var stateKey sql.NullString
+		err := rows.Scan(
+			&event.ID, &event.Tipo, &event.CanalID, &event.Sender,
+			&event.OrigemServidorTS, &event.Content, &stateKey,
+			pq.Array(&event.PrevEventos), pq.Array(&event.AuthEventos), &event.Depth,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan state event: %w", err)
+		}
+		if stateKey.Valid {
+			event.StateKey = &stateKey.String
+		}
+		eventos = append(eventos, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+	return eventos, nil
 }
