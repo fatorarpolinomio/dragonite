@@ -103,7 +103,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	)
 	clientHandler.RegisterRoutes(mux, s.TokenBearerMiddleware)
 
-	federationHandler := federation.NewHandler(s.systemService, s.fedService, s.roomInteractionsService, s.profileService, s.dirService, s.keyFetcher)
+	federationHandler := federation.NewHandler(s.systemService, s.fedService, s.roomInteractionsService, s.profileService, s.dirService, s.keyFetcher, s.serverName)
 	federationHandler.RegisterRoutes(mux)
 
 	// Registra rotas
