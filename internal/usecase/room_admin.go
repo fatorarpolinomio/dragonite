@@ -71,8 +71,12 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 	// m.room.power_levels
 	eventsToSave = append(eventsToSave, buildPowerLevelEvent(roomID, props.CreatorID))
 	// m.room.join_rules
+	present := "private"
+	if props.Preset != nil {
+		present = *props.Preset
+	}
 	var rulesEvent *domain.Evento
-	switch *props.Preset {
+	switch preset {
 	case "public_chat":
 		rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "public")
 	case "private_chat":
@@ -155,7 +159,7 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 			}
 		}
 
-		if props.IsDirect {
+		if props.IsDirect && len(props.Invite) > 0 {
 			s.usuarioStore.AddDirectMessage(txCtx, props.CreatorID, props.Invite[0], roomID)
 		}
 

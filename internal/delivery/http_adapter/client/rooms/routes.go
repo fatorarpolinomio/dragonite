@@ -118,10 +118,45 @@ func (h *Handler) postCreateRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Campos opcionais do body: *string -> string, usando "" quando ausentes
+	// (a spec permite a omissão de todos eles)
+	var alias, name, topic, version string
+	if req.RoomAliasName != nil {
+		alias = *req.RoomAliasName
+	}
+	if req.Name != nil {
+		name = *req.Name
+	}
+	if req.Topic != nil {
+		topic = *req.Topic
+	}
+	if req.RoomVersion != nil {
+		version = *req.RoomVersion
+	}
+ 
+	// initial_state: converte do formato da requisição (schemas.InitialStateEvent)
+	// para o formato esperado pelo usecase (usecase.StateEventParams)
+	initialState := make([]usecase.StateEventParams, 0, len(req.InitialState))
+	for _, ev := range req.InitialState {
+		stateKey := ev.StateKey
+		initialState = append(initialState, usecase.StateEventParams{
+			StateKey: &stateKey,
+			Type:     ev.Type,
+			Content:  ev.Content,
+		})
+	}
+
 	params := usecase.CreateRoomParams{
-		CreatorID:  userID,
-		Visibility: req.Visibility,
-		Alias:      *req.RoomAliasName,
+		CreatorID: 	  userID,
+		Visibility:   req.Visibility,
+		Alias:        *req.RoomAliasName,
+		Name:         name,
+		Version:      version,
+		Topic:        topic,
+		Invite:       req.Invite,
+		IsDirect:     req.IsDirect,
+		InitialState: initialState,
+		Preset:       req.Preset,
 	}
 
 	canal, err := h.roomAdminService.CreateRoom(ctx, params)
