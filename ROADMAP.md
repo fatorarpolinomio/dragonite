@@ -31,7 +31,7 @@ onde ela agregaria valor, para ajudar a priorizar depois.
 - [X] POST /\_matrix/client/v3/logout
 - [X] POST /\_matrix/client/v3/refresh
 - [ ] GET /\_matrix/client/v3/account/whoami
-- [ ] GET /\_matrix/client/v3/capabilities
+- [x] GET /\_matrix/client/v3/capabilities *(mock — retorna só `m.room_versions` com default/available "11")*
 - [x] POST /\_matrix/client/v3/user/{userId}/filter *(mock — retorna `filter_id` fixo, sem aplicar filtro de verdade)*
 - [x] GET /\_matrix/client/v3/sync
 - [X] POST /\_matrix/client/v3/createRoom 
@@ -43,7 +43,7 @@ onde ela agregaria valor, para ajudar a priorizar depois.
 - [ ] GET /\_matrix/client/v3/rooms/{roomId}/state
 - [ ] GET /\_matrix/client/v3/rooms/{roomId}/state/{eventType}/{stateKey}
 - [ ] GET /\_matrix/client/v3/rooms/{roomId}/event/{eventId}
-- [ ] GET /\_matrix/client/v3/rooms/{roomId}/messages
+- [X] GET /\_matrix/client/v3/rooms/{roomId}/messages
 - [ ] GET /\_matrix/client/v3/rooms/{roomId}/members
 - [ ] GET /\_matrix/client/v3/rooms/{roomId}/joined_members
 - [x] GET /\_matrix/client/v3/profile/{userId} 
@@ -102,10 +102,10 @@ resiliente (incluindo reconciliação de estado após partições de rede).
 - [x] GET /\_matrix/key/v2/server
 - [x] PUT /\_matrix/federation/v1/send/{txnId}
 - [x] GET /\_matrix/federation/v1/backfill/{roomId}
-- [ ] POST /\_matrix/federation/v1/get_missing_events/{roomId} *(reconciliação de lacunas na DAG após partição/reconexão)*
+- [X] POST /\_matrix/federation/v1/get_missing_events/{roomId} *(reconciliação de lacunas na DAG após partição/reconexão)*
 - [x] GET /\_matrix/federation/v1/event/{eventId}
 - [ ] GET /\_matrix/federation/v1/state/{roomId} *(recuperar estado completo de uma sala ao entrar via federação)*
-- [ ] GET /\_matrix/federation/v1/state_ids/{roomId} *(mesma coisa, mas só IDs — usado para resolução de estado eficiente)*
+- [X] GET /\_matrix/federation/v1/state_ids/{roomId} *(mesma coisa, mas só IDs — usado para resolução de estado eficiente)*
 - [x] GET /\_matrix/federation/v1/make_join/{roomId}/{userId}
 - [x] PUT /\_matrix/federation/v2/send_join/{roomId}/{eventId}
 - [x] GET /\_matrix/federation/v1/make_leave/{roomId}/{userId}

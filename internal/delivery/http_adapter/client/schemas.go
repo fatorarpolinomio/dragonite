@@ -22,6 +22,20 @@ type FilterUploadResponse struct {
 	FilterID string `json:"filter_id"`
 }
 
+// Resposta de GET /_matrix/client/v3/capabilities (mock — só inclui m.room_versions)
+type CapabilitiesResponse struct {
+	Capabilities Capabilities `json:"capabilities"`
+}
+ 
+type Capabilities struct {
+	RoomVersions RoomVersionsCapability `json:"m.room_versions"`
+}
+ 
+type RoomVersionsCapability struct {
+	Default   string            `json:"default"`   // obrigatório
+	Available map[string]string `json:"available"` // obrigatório
+}
+
 // Corpo da requisição POST /_matrix/client/v3/user_directory/search
 type UserSearchRequest struct {
 	SearchTerm string `json:"search_term"` // obrigatório pela spec
@@ -87,7 +101,7 @@ type Timeline struct {
 }
 
 type InvitedRoom struct {
-	InviteState InviteState `json:"invate_state"`
+	InviteState InviteState `json:"invite_state"`
 }
 
 type InviteState struct {

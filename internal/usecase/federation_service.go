@@ -575,6 +575,8 @@ func (f *FederationService) HandleGetMissingEvents(ctx context.Context, roomID s
 	return &GetMissingEventsResponse{
 		Events: eventos,
 	}, nil
+}
+
 // FetchRemoteMedia busca um arquivo de mídia hospedado em um servidor Matrix remoto, para
 // implementar o proxy de GET /_matrix/client/v1/media/download/{serverName}/{mediaId} quando
 // serverName não é o nosso próprio servidor
