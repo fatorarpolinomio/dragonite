@@ -67,7 +67,8 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 	}
 	eventsToSave = append(eventsToSave, buildCreateEvent(roomID, props.CreatorID, version))
 	// m.room.member
-	eventsToSave = append(eventsToSave, buildJoinEvent(roomID, props.CreatorID))
+	creatorJoinEvent := buildJoinEvent(roomID, props.CreatorID)
+	eventsToSave = append(eventsToSave, creatorJoinEvent)
 	// m.room.power_levels
 	eventsToSave = append(eventsToSave, buildPowerLevelEvent(roomID, props.CreatorID))
 	// m.room.join_rules
@@ -143,11 +144,11 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 		}
 
 		// 4. Popula a tabela Canal_Membership para que o Notifier funcione
-		if err := s.canalStore.UpsertMembership(txCtx, roomID, props.CreatorID, "join"); err != nil {
+		if err := s.canalStore.UpsertMembership(txCtx, roomID, props.CreatorID, "join", creatorJoinEvent.ID); err != nil {
 			return err
 		}
-		for _, invitee := range props.Invite {
-			if err := s.canalStore.UpsertMembership(txCtx, roomID, invitee, "invite"); err != nil {
+		for invitee, event := range inviteEvents {
+			if err := s.canalStore.UpsertMembership(txCtx, roomID, invitee, "invite", event.ID); err != nil {
 				return err
 			}
 		}

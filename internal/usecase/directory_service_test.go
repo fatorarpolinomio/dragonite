@@ -40,7 +40,7 @@ func (f *fakeCanalStore) GetStateEventID(ctx context.Context, canalID string, st
 	return "", false
 }
 
-func (f *fakeCanalStore) UpsertMembership(ctx context.Context, roomID, userID, membership string) error {
+func (f *fakeCanalStore) UpsertMembership(ctx context.Context, roomID, userID, membership, id_evento string) error {
 	return nil
 }
 

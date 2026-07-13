@@ -93,7 +93,7 @@ func (c *clientCanalStore) GetStateEventID(ctx context.Context, canalID string, 
 	return "", false
 }
 
-func (c *clientCanalStore) UpsertMembership(ctx context.Context, roomID, userID, membership string) error {
+func (c *clientCanalStore) UpsertMembership(ctx context.Context, roomID, userID, membership, id_evento string) error {
 	return nil
 }
 

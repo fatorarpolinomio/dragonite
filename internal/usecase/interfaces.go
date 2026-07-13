@@ -49,7 +49,7 @@ type CanalStorage interface {
 	GetUserMembership(ctx context.Context, roomID, userID string) (string, error)
 	// Get a room state event ID
 	GetStateEventID(ctx context.Context, canalID string, stateType, stateKey string) (string, bool)
-	UpsertMembership(ctx context.Context, roomID, userID, membership string) error
+	UpsertMembership(ctx context.Context, roomID, userID, membership, id_evento string) error
 	UpsertCurrentState(ctx context.Context, canalID, stateType, stateKey, eventID string) error
 	GetAllPublic(ctx context.Context, offset, limit int) ([]domain.Canal, error)
 	UpdateForwardExtremities(ctx context.Context, canalID string, newEventID string, prevEvents []string) error

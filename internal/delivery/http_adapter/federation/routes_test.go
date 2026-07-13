@@ -504,7 +504,7 @@ func (f *fakeFedCanalStore) GetJoinRule(_ context.Context, _ string) (string, er
 func (f *fakeFedCanalStore) GetCanalParticipatingServers(_ context.Context, _ string) ([]string, error) {
 	return f.servers, nil
 }
-func (f *fakeFedCanalStore) UpsertMembership(_ context.Context, _, _, _ string) error { return nil }
+func (f *fakeFedCanalStore) UpsertMembership(_ context.Context, _, _, _, _ string) error { return nil }
 func (f *fakeFedCanalStore) UpsertCurrentState(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
