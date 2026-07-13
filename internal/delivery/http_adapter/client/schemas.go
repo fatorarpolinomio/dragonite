@@ -82,3 +82,8 @@ type ProfileResponse struct {
 type DisplayNameRequest struct {
 	DisplayName string `json:"displayname"`
 }
+
+// GET /_matrix/client/v3/joined_rooms
+type JoinedRoomsResponse struct {
+	JoinedRooms []string `json:"joined_rooms"`
+}

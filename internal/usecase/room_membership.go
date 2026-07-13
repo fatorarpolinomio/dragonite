@@ -85,6 +85,20 @@ func (s *RoomMembershipService) LeaveRoom(ctx context.Context, userID, roomID st
 	return nil
 }
 
+// GetJoinedRooms retorna os IDs das salas em que o usuário tem membership "join"
+// Usado por GET /_matrix/client/v3/joined_rooms
+func (s *RoomMembershipService) GetJoinedRooms(ctx context.Context, userID string) ([]string, error) {
+	roomIDs, err := s.canalRepo.GetUserJoinedRooms(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if roomIDs == nil {
+		// evita serializar "null" no JSON quando o usuário não está em nenhuma sala
+		roomIDs = []string{}
+	}
+	return roomIDs, nil
+}
+
 func (s *RoomMembershipService) JoinLocalRoom(ctx context.Context, userID, roomID string) error {
 
 	// 1. Fetch the Join Rules

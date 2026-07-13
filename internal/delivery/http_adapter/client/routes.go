@@ -90,6 +90,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	mux.Handle("GET /_matrix/client/v3/sync", authMiddleware(http.HandlerFunc(h.syncClient))) // WARN: esse é o dificil
 	// busca de usuários
 	mux.Handle("POST /_matrix/client/v3/user_directory/search", authMiddleware(http.HandlerFunc(h.searchUsers)))
+	// salas em que o usuário está atualmente
++	mux.Handle("GET /_matrix/client/v3/joined_rooms", authMiddleware(http.HandlerFunc(h.getJoinedRooms)))
 	// regras de notificação (mock)
 	mux.Handle("GET /_matrix/client/v3/pushrules/", authMiddleware(http.HandlerFunc(h.getPushRules)))
 	// upload de filtro (mock)
@@ -198,6 +200,23 @@ func (h *Handler) searchUsers(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, UserSearchResponse{
 		Limited: limited,
 		Results: results,
+	})
+}
+
+// getJoinedRooms retorna a lista de salas em que o usuário autenticado tem membership "join"
+// GET /_matrix/client/v3/joined_rooms
+func (h *Handler) getJoinedRooms(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(types.UserIDKey).(string)
+
+	roomIDs, err := h.roomMembership.GetJoinedRooms(r.Context(), userID)
+	if err != nil {
+		log.Printf("[ERROR] GET /joined_rooms: %v", err)
+		httputil.WriteMatrixError(w, http.StatusInternalServerError, httputil.M_UNKNOWN, "failed to fetch joined rooms")
+		return
+	}
+
+	httputil.WriteJSON(w, http.StatusOK, JoinedRoomsResponse{
+		JoinedRooms: roomIDs,
 	})
 }
 
