@@ -517,6 +517,9 @@ func (f *fakeFedCanalStore) GetUserJoinedRooms(_ context.Context, _ string) ([]s
 func (f *fakeFedCanalStore) GetUserMembership(_ context.Context, _, _ string) (string, error) {
 	return f.membership, nil
 }
+func (f *fakeFedCanalStore) GetUserMembershipRecord(_ context.Context, _, _ string) (string, bool, error) {
+	return "", false, nil
+}
 func (f *fakeFedCanalStore) GetStateEventID(_ context.Context, _, _, _ string) (string, bool) {
 	return "", false
 }
