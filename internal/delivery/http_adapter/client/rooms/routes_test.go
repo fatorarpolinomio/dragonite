@@ -113,6 +113,12 @@ func (f *fakeRoomsEventoStore) GetRoomMessagesHistory(ctx context.Context, roomI
 func (f *fakeRoomsEventoStore) GetEventsOfCanalSinceLeft(ctx context.Context, userID string, roomID string, since domain.SyncToken) ([]domain.Evento, error) {
 	return nil, nil
 }
+func (f *fakeRoomsEventoStore) GetStateAndAuthChainEvents(ctx context.Context, roomID string, userID string) ([]domain.Evento, []domain.Evento, error) {
+	return nil, nil, nil
+}
+func (f *fakeRoomsEventoStore) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
+	return nil, nil
+}
 
 // newTestGetRoomStateHandler monta um Handler mínimo, só com roomInteractions preenchido, suficiente para testar getRoomState
 func newTestGetRoomStateHandler(canalStore *fakeRoomsCanalStore, eventoStore *fakeRoomsEventoStore) *Handler {

@@ -45,7 +45,7 @@ func newRoomsvcFakeCanalStorage() *roomsvcFakeCanalStorage {
 }
 
 func roomsvcMembershipKey(roomID, userID string) string { return roomID + "|" + userID }
-func roomsvcStateKey(roomID, t, key string) string       { return roomID + "|" + t + "|" + key }
+func roomsvcStateKey(roomID, t, key string) string      { return roomID + "|" + t + "|" + key }
 
 func (c *roomsvcFakeCanalStorage) Create(ctx context.Context, roomID, userID string) (*domain.Canal, error) {
 	return &domain.Canal{ID: roomID, Criador: userID, Versao: "11"}, nil
@@ -164,5 +164,11 @@ func (e *roomsvcFakeEventoStorage) GetRoomMessagesHistory(ctx context.Context, r
 	return e.messagesHistory, nil
 }
 func (e *roomsvcFakeEventoStorage) GetEventsOfCanalSinceLeft(ctx context.Context, userID string, roomID string, since domain.SyncToken) ([]domain.Evento, error) {
+	return nil, nil
+}
+func (e *roomsvcFakeEventoStorage) GetStateAndAuthChainEvents(ctx context.Context, roomID string, userID string) ([]domain.Evento, []domain.Evento, error) {
+	return nil, nil, nil
+}
+func (e *roomsvcFakeEventoStorage) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
 	return nil, nil
 }

@@ -489,10 +489,10 @@ func TestPostPublicRooms_EmptyBody(t *testing.T) {
 // Fakes para FederationService
 
 type fakeFedCanalStore struct {
-	canal      *domain.Canal
-	joinRule   string
-	servers    []string
-	membership string
+	canal               *domain.Canal
+	joinRule            string
+	servers             []string
+	membership          string
 	upsertedMemberships []fedUpsertMembershipRecord
 }
 
@@ -593,6 +593,14 @@ func (f *fakeFedEventoStore) GetEventsOfCanalSince(ctx context.Context, userID s
 }
 
 func (f *fakeFedEventoStore) GetEventsOfCanalSinceLeft(ctx context.Context, userID string, roomID string, since domain.SyncToken) ([]domain.Evento, error) {
+	return nil, nil
+}
+
+func (f *fakeFedEventoStore) GetStateAndAuthChainEvents(ctx context.Context, roomID string, userID string) ([]domain.Evento, []domain.Evento, error) {
+	return nil, nil, nil
+}
+
+func (f *fakeFedEventoStore) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
 	return nil, nil
 }
 
