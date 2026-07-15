@@ -70,7 +70,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/receipt/{receiptType}/{eventId}", authMiddleware(http.HandlerFunc(h.postReceipt)))
 	mux.Handle("POST /_matrix/client/v3/rooms/{roomId}/read_markers", authMiddleware(http.HandlerFunc(h.postReadMarkers)))
 	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/event/{eventId}", authMiddleware(http.HandlerFunc(h.getEvent)))
-	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/state", authMiddleware(http.HandlerFunc(h.getRoomState)))
+	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/state", authMiddleware(http.HandlerFunc(h.getRoomStateAll)))
 	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/joined_members", authMiddleware(http.HandlerFunc(h.getJoinedMembers)))
 }
 
@@ -664,9 +664,9 @@ func (h *Handler) getEvent(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, evento)
 }
 
-// getRoomState devolve o estado atual completo de uma sala
+// getRoomStateAll devolve o estado atual completo de uma sala
 // GET /_matrix/client/v3/rooms/{roomId}/state
-func (h *Handler) getRoomState(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRoomStateAll(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), httputil.RequestTimeout)
 	defer cancel()
 
