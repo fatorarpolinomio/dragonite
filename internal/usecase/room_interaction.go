@@ -292,3 +292,24 @@ func (s *RoomInteractionService) SendReceipt(ctx context.Context, userID, roomID
 
 	return nil
 }
+
+func (s *RoomInteractionService) GetEvent(ctx context.Context, userID, roomID, eventID string) (*domain.Evento, error) {
+
+	status, err := s.canalRepo.GetUserMembership(ctx, roomID, userID)
+	if err != nil || status != "join" {
+		return nil, types.ErrForbidden
+	}
+
+
+	evento, err := s.eventoRepo.GetEvento(ctx, eventID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch event: %w", err)
+	}
+
+
+	if evento.CanalID != roomID {
+		return nil, types.ErrForbidden
+	}
+
+	return evento, nil
+}
