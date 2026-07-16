@@ -124,6 +124,9 @@ func (f *fakeRoomsEventoStore) GetStateAndAuthChainEvents(ctx context.Context, r
 func (f *fakeRoomsEventoStore) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
 	return nil, nil
 }
+func (f *fakeRoomsEventoStore) SaveTypingState(ctx context.Context, roomID, userID string, isTyping bool, expiresAt int64) error {
+	return nil
+}
 
 // newTestGetRoomStateHandler monta um Handler mínimo, só com roomInteractions preenchido, suficiente para testar getRoomState
 func newTestGetRoomStateHandler(canalStore *fakeRoomsCanalStore, eventoStore *fakeRoomsEventoStore) *Handler {

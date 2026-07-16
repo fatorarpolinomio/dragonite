@@ -175,3 +175,6 @@ func (e *roomsvcFakeEventoStorage) GetStateAndAuthChainEvents(ctx context.Contex
 func (e *roomsvcFakeEventoStorage) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
 	return nil, nil
 }
+func (e *roomsvcFakeEventoStorage) SaveTypingState(ctx context.Context, roomID, userID string, isTyping bool, expiresAt int64) error {
+	return nil
+}

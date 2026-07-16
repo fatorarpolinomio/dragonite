@@ -615,6 +615,9 @@ func (f *fakeFedEventoStore) GetStateAndAuthChainEvents(ctx context.Context, roo
 func (f *fakeFedEventoStore) GetRoomMemberEvents(ctx context.Context, roomID string) ([]domain.Evento, error) {
 	return nil, nil
 }
+func (f *fakeFedEventoStore) SaveTypingState(ctx context.Context, roomID, userID string, isTyping bool, expiresAt int64) error {
+	return nil
+}
 
 type fakeFedWorkUnit struct{}
 
