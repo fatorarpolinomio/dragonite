@@ -106,6 +106,12 @@ type InviteRequest struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+// TypingRequest representa o corpo do pedido para o endpoint de typing
+type TypingRequest struct {
+	Typing  bool  `json:"typing"`
+	Timeout int64 `json:"timeout,omitempty"` // Milissegundos
+}
+
 // GET /rooms/{roomId}/state/{eventType}/{stateKey}
 
 // StateEventFull é o corpo de resposta quando ?format=event é usado .

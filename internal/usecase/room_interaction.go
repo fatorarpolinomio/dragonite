@@ -472,3 +472,29 @@ func (s *RoomInteractionService) GetStateEventContent(ctx context.Context, roomI
 	}
 	return evento, nil
 }
+
+// SetTyping atualiza a indicação de que o utilizador está a escrever
+func (s *RoomInteractionService) SetTyping(ctx context.Context, userID, roomID string, isTyping bool, timeout int64) error {
+	// Verificar se o utilizador está na sala (join)
+	status, err := s.canalRepo.GetUserMembership(ctx, roomID, userID)
+	if err != nil || status != "join" {
+		return types.ErrForbidden
+	}
+
+	// Calcular o momento de expiração (em milissegundos)
+	var expiresAt int64 = 0
+	if isTyping {
+		if timeout <= 0 {
+			timeout = 30000 // Padrão: 30 segundos se não for especificado
+		}
+		expiresAt = time.Now().UnixMilli() + timeout
+	}
+
+	// Guardar o estado efémero
+	err = s.eventoRepo.SaveTypingState(ctx, roomID, userID, isTyping, expiresAt)
+	if err != nil {
+		return fmt.Errorf("failed to persist typing state: %w", err)
+	}
+
+	return nil
+}

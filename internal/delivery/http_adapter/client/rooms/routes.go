@@ -72,6 +72,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/event/{eventId}", authMiddleware(http.HandlerFunc(h.getEvent)))
 	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/state", authMiddleware(http.HandlerFunc(h.getRoomStateAll)))
 	mux.Handle("GET /_matrix/client/v3/rooms/{roomId}/joined_members", authMiddleware(http.HandlerFunc(h.getJoinedMembers)))
+    mux.Handle("PUT /_matrix/client/v3/rooms/{roomId}/typing/{userId}", authMiddleware(http.HandlerFunc(h.putTyping)))
 }
 
 // getPublicRooms lista as salas públicas do servidor.
@@ -736,4 +737,49 @@ func (h *Handler) getJoinedMembers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httputil.WriteJSON(w, http.StatusOK, response)
+}
+
+// putTyping define se um utilizador está ou não escrevendo numa sala
+// PUT /_matrix/client/v3/rooms/{roomId}/typing/{userId}
+func (h *Handler) putTyping(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), httputil.RequestTimeout)
+	defer cancel()
+
+	// Extrair o utilizador autenticado
+	tokenUserID, ok := ctx.Value(types.UserIDKey).(string)
+	if !ok || tokenUserID == "" {
+		httputil.WriteMatrixError(w, http.StatusUnauthorized, httputil.M_MISSING_TOKEN, "Missing access token")
+		return
+	}
+
+	roomID := r.PathValue("roomId")
+	userID := r.PathValue("userId")
+
+	// Segurança: O utilizador não pode fingir que outra pessoa está escrevendo
+	if tokenUserID != userID {
+		httputil.WriteMatrixError(w, http.StatusForbidden, httputil.M_FORBIDDEN, "Cannot set typing state for another user")
+		return
+	}
+
+	// Fazer Parse do JSON
+	var req TypingRequest
+	if err := httputil.ParseBody(r, &req); err != nil {
+		httputil.WriteMatrixError(w, http.StatusBadRequest, httputil.M_NOT_JSON, "Invalid JSON body")
+		return
+	}
+
+	// Passar ao UseCase
+	err := h.roomInteractions.SetTyping(ctx, userID, roomID, req.Typing, req.Timeout)
+	if err != nil {
+		if errors.Is(err, types.ErrForbidden) {
+			httputil.WriteMatrixError(w, http.StatusForbidden, httputil.M_FORBIDDEN, "User is not in the room")
+			return
+		}
+		log.Printf("[ERROR] PUT /typing: %v", err)
+		httputil.WriteMatrixError(w, http.StatusInternalServerError, httputil.M_UNKNOWN, "Failed to update typing state")
+		return
+	}
+
+	// O protocolo exige retornar um JSON vazio em caso de sucesso
+	httputil.WriteJSON(w, http.StatusOK, map[string]any{})
 }

@@ -593,3 +593,23 @@ func (s *PostgresStorage) GetRoomMemberEvents(ctx context.Context, roomID string
 	}
 	return eventos, nil
 }
+
+func (s *PostgresStorage) SaveTypingState(ctx context.Context, roomID, userID string, isTyping bool, expiresAt int64) error {
+
+	// Utiliza o ON CONFLICT para manter sempre apenas a última atualização do utilizador na sala
+	query := `
+		INSERT INTO typing_state (room_id, user_id, is_typing, expires_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (room_id, user_id)
+		DO UPDATE SET
+			is_typing = EXCLUDED.is_typing,
+			expires_at = EXCLUDED.expires_at;
+	`
+
+	_, err := s.db.Exec(ctx, query, roomID, userID, isTyping, expiresAt)
+	if err != nil {
+		return fmt.Errorf("failed to upsert typing state: %w", err)
+	}
+
+	return nil
+}
