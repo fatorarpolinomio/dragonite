@@ -14,6 +14,7 @@ import (
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/client/media"
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/client/presence"
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/client/profile"
+	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/client/roomkeys"
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/client/rooms"
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/httputil"
 	"github.com/caio-bernardo/dragonite/internal/domain"
@@ -35,6 +36,7 @@ type Handler struct {
 	mediaService     *usecase.MediaService
 	idempotencyCache infrastructure.IdempotencyCache
 	presenceService  *usecase.PresenceService
+	backupService    *usecase.BackupService
 	serverName       string
 }
 
@@ -52,6 +54,7 @@ func NewHandler(
 	mediaService *usecase.MediaService,
 	idempotencyCache infrastructure.IdempotencyCache,
 	presenceService *usecase.PresenceService,
+	backupService *usecase.BackupService,
 ) *Handler {
 	return &Handler{
 		serverName:       serverName,
@@ -67,6 +70,7 @@ func NewHandler(
 		mediaService:     mediaService,
 		idempotencyCache: idempotencyCache,
 		presenceService:  presenceService,
+		backupService:    backupService,
 	}
 }
 
@@ -96,6 +100,10 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	// presence (online/offline/unavailable)
 	presenceHandler := presence.NewHandler(h.presenceService)
 	presenceHandler.RegisterRoutes(mux, authMiddleware)
+
+	// backup de chaves E2EE (server-side key backup)
+	roomKeysHandler := roomkeys.NewHandler(h.backupService)
+	roomKeysHandler.RegisterRoutes(mux, authMiddleware)
 
 	// sincronização de dados
 	mux.Handle("GET /_matrix/client/v3/sync", authMiddleware(http.HandlerFunc(h.syncClient))) // WARN: esse é o dificil
