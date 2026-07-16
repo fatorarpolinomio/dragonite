@@ -67,6 +67,7 @@ func NewServer(port int,
 		fedService:  fedService,
 		jwtSecret:   jwtSecret,
 		port:        port,
+		serverName:  serverName,
 
 		profileService:          profileService,
 		accountService:          accountService,
