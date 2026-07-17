@@ -66,7 +66,7 @@ func buildPowerLevelEvent(canalID string, creatorID string) *domain.Evento {
 
 func buildJoinRulesEvent(canalID, creatorID, rule string) *domain.Evento {
 	content := map[string]string{
-		"join_rules": rule,
+		"join_rule": rule, // Singular
 	}
 	return newBaseEvent(canalID, creatorID, string(types.JoinRules), new(""), content)
 }
