@@ -18,9 +18,10 @@ type RoomMembershipService struct {
 	eventRepo        EventoStorage
 	fedService       *FederationService
 	stateResolver    StateResolver
+	usuarioRepo      UsuarioStorage
 }
 
-func NewRoomMembershipService(uow WorkUnit, canalRepo CanalStorage, eventRepo EventoStorage, authRuleResolver *AuthRuleResolver, fedService *FederationService, stateResolver StateResolver) *RoomMembershipService {
+func NewRoomMembershipService(uow WorkUnit, canalRepo CanalStorage, eventRepo EventoStorage, authRuleResolver *AuthRuleResolver, fedService *FederationService, stateResolver StateResolver, usuarioRepo UsuarioStorage) *RoomMembershipService {
 	return &RoomMembershipService{
 		uow:              uow,
 		authRuleResolver: authRuleResolver,
@@ -28,6 +29,7 @@ func NewRoomMembershipService(uow WorkUnit, canalRepo CanalStorage, eventRepo Ev
 		eventRepo:        eventRepo,
 		fedService:       fedService,
 		stateResolver:    stateResolver,
+		usuarioRepo:      usuarioRepo,
 	}
 }
 
@@ -38,8 +40,19 @@ func (s *RoomMembershipService) LeaveRoom(ctx context.Context, userID, roomID st
 		return fmt.Errorf("user is not in a state to leave this room")
 	}
 
+	var displayName, avatarURL string
+
+    if profile, err := s.usuarioRepo.GetProfileByID(ctx, userID); err == nil && profile != nil {
+        if profile.DisplayName != nil {
+            displayName = *profile.DisplayName
+        }
+        if profile.AvatarURL != nil {
+            avatarURL = *profile.AvatarURL
+        }
+    }
+
 	// 2. Build the Leave Event
-	leaveEvent := buildLeaveEvent(roomID, userID)
+	leaveEvent := buildLeaveEvent(roomID, userID, displayName, avatarURL)
 
 	// Transactional Save
 	err = s.uow.Execute(ctx, func(txCtx context.Context) error {
@@ -124,10 +137,22 @@ func (s *RoomMembershipService) JoinLocalRoom(ctx context.Context, userID, roomI
 		return fmt.Errorf("M_FORBIDDEN: Room is not public")
 	}
 
+	// --- NOVA BUSCA: Pegar perfil antes de construir o evento ---
+    var displayName, avatarURL string
+
+    if profile, err := s.usuarioRepo.GetProfileByID(ctx, userID); err == nil && profile != nil {
+        if profile.DisplayName != nil {
+            displayName = *profile.DisplayName
+        }
+        if profile.AvatarURL != nil {
+            avatarURL = *profile.AvatarURL
+        }
+    }
+
+
 	// 3. Build the Join Event
 
-	joinEvent := buildJoinEvent(roomID, userID)
-
+	joinEvent := buildJoinEvent(roomID, userID, displayName, avatarURL)
 	// Transactional Save
 	err = s.uow.Execute(ctx, func(txCtx context.Context) error {
 		// 4. Resolve DAG Dependencies
@@ -345,6 +370,19 @@ func (s *RoomMembershipService) InviteUser(ctx context.Context, roomID, inviterI
 	if reason != "" {
 		content["reason"] = reason
 	}
+
+	// --- NOVA BUSCA: Injetar Perfil no Convite ---
+    if profile, err := s.usuarioRepo.GetProfileByID(ctx, inviteeID); err == nil && profile != nil {
+        // Verifique como os campos estão escritos na sua struct domain.Profile
+        if profile.DisplayName != nil {
+            content["displayname"] = *profile.DisplayName
+        }
+        if profile.AvatarURL != nil { // Pode ser AvatarUrl dependendo de como você definiu
+            content["avatar_url"] = *profile.AvatarURL
+        }
+    }
+    // ---------------------------------------------
+    //
 	inviteEvent := newBaseEvent(roomID, inviterID, string(types.Member), &inviteeID, content)
 
 	// 5. Resolve dependências do DAG

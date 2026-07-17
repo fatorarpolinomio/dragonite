@@ -30,14 +30,20 @@ func buildCreateEvent(canalID string, creatorID string, version string) *domain.
 	return newBaseEvent(canalID, creatorID, string(types.Create), new(""), content)
 }
 
-func buildJoinEvent(canalID string, sender string) *domain.Evento {
-	content := map[string]string{
-		"membership": "join",
-	}
-	return newBaseEvent(canalID, sender, string(types.Member), &sender, content)
+func buildJoinEvent(roomID, userID, displayName, avatarURL string) *domain.Evento {
+    content := map[string]any{
+        "membership": "join",
+    }
+    if displayName != "" {
+        content["displayname"] = displayName
+    }
+    if avatarURL != "" {
+        content["avatar_url"] = avatarURL
+    }
+    return newBaseEvent(roomID, userID, "m.room.member", &userID, content)
 }
 
-func buildLeaveEvent(canalID string, sender string) *domain.Evento {
+func buildLeaveEvent(canalID string, sender string, displayName, avatarURL string) *domain.Evento {
 	content := map[string]string{
 		"membership": "leave",
 	}
