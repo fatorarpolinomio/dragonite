@@ -78,12 +78,14 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 	}
 	var rulesEvent *domain.Evento
 	switch present {
-	case "public_chat":
-		rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "public")
-	case "private_chat":
-		rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "private")
-	default:
-		rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "private")
+		case "public_chat":
+    rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "public")
+		case "private_chat":
+    // ALTERADO DE "private" PARA "invite"
+    rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "invite")
+		default:
+    // ALTERADO DE "private" PARA "invite"
+    rulesEvent = buildJoinRulesEvent(roomID, props.CreatorID, "invite")
 	}
 	eventsToSave = append(eventsToSave, rulesEvent)
 
