@@ -75,7 +75,7 @@ type EventoWithoutCanalID struct {
 	Sender           string          `json:"sender"`
 	OrigemServidorTS int64           `json:"origin_server_ts"`
 
-	StateKey *string `json:"state_key"`
+	StateKey *string `json:"state_key,omitempty"`
 
 	Unsigned json.RawMessage `json:"unsigned"` // dados adicionados pelo servidor
 }

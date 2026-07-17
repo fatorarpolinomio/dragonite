@@ -313,7 +313,7 @@ func (s *PostgresStorage) GetRoomMessagesHistory(ctx context.Context, roomID str
 		} else {
 			// Se há token, trazemos os mais antigos do que o token
 			query = `SELECT id_evento, tipo, id_canal, sender, origin_server_ts, content, state_key, stream_ordering, hashes, signatures, unsigned
-					 FROM Evento WHERE id_canal = $1 AND stream_ordering < $2 ORDER BY stream_ordering DESC LIMIT $3`
+					 FROM Evento WHERE id_canal = $1 AND stream_ordering <= $2 ORDER BY stream_ordering DESC LIMIT $3`
 			args = []any{roomID, fromToken, limit}
 		}
 	} else {
