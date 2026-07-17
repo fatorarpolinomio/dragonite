@@ -20,11 +20,11 @@ func newTestRoomMembershipService(t *testing.T, canal *roomsvcFakeCanalStorage, 
 	if err != nil {
 		t.Fatalf("failed to generate test key: %v", err)
 	}
-	fedSvc := NewFederationService("example.com", "ed25519:1", priv, canal, evento, uow, nil)
+	fedSvc := NewFederationService("example.com", "ed25519:1", priv, canal, evento, uow, nil, nil)
 	return NewRoomMembershipService(uow, canal, evento, authResolver, fedSvc, nil)
 }
 
-//  InviteUser 
+//  InviteUser
 
 func TestInviteUser_Success(t *testing.T) {
 	roomID, inviter, invitee := "!room1:example.com", "@alice:example.com", "@bob:example.com"
@@ -173,7 +173,7 @@ func TestInviteUser_NoPowerLevelsDefined(t *testing.T) {
 	}
 }
 
-//  JoinLocalRoom 
+//  JoinLocalRoom
 
 func TestJoinLocalRoom_PublicRoom(t *testing.T) {
 	roomID, userID := "!room1:example.com", "@alice:example.com"
@@ -221,7 +221,7 @@ func TestJoinLocalRoom_InviteOnlyWithInvite(t *testing.T) {
 	}
 }
 
-// LeaveRoom 
+// LeaveRoom
 
 func TestLeaveRoom_Success(t *testing.T) {
 	roomID, userID := "!room1:example.com", "@alice:example.com"

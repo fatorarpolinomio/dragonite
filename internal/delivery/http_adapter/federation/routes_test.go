@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/caio-bernardo/dragonite/internal/domain"
+	"github.com/caio-bernardo/dragonite/internal/domain/types"
 	"github.com/caio-bernardo/dragonite/internal/usecase"
 	"github.com/caio-bernardo/dragonite/internal/util"
-	"github.com/caio-bernardo/dragonite/internal/domain/types"
 )
 
 type fakeSystemStorage struct{}
@@ -660,7 +660,7 @@ func newTestHandlerWithFed(t *testing.T, canalStore *fakeFedCanalStore, eventoSt
 	t.Helper()
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	sys := usecase.NewSystemService("dragonite.com", "1.0.0", pub, priv, "ed25519:1", &fakeSystemStorage{})
-	fedSvc := usecase.NewFederationService("dragonite.com", "ed25519:1", priv, canalStore, eventoStore, &fakeFedWorkUnit{}, nil)
+	fedSvc := usecase.NewFederationService("dragonite.com", "ed25519:1", priv, canalStore, eventoStore, &fakeFedWorkUnit{}, nil, nil)
 	return NewHandler(sys, fedSvc, nil, nil, nil, nil, nil, "example.com")
 }
 

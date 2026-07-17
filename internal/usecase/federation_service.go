@@ -58,21 +58,21 @@ type FederationService struct {
 	canalStore       CanalStorage
 	eventoStore      EventoStorage
 	uow              WorkUnit
-	authRuleResolver AuthRuleResolver
+	authRuleResolver *AuthRuleResolver
 	stateResolver    StateResolver
 }
 
-func NewFederationService(serverName, keyID string, privateKey ed25519.PrivateKey, canalStore CanalStorage, eventoStore EventoStorage, uow WorkUnit, authRuleResolver AuthRuleResolver, stateResolver StateResolver) *FederationService {
+func NewFederationService(serverName, keyID string, privateKey ed25519.PrivateKey, canalStore CanalStorage, eventoStore EventoStorage, uow WorkUnit, authRuleResolver *AuthRuleResolver, stateResolver StateResolver) *FederationService {
 	fs := &FederationService{
-		outboundQueue: make(chan domain.Evento, 1000),
-		serverName:    serverName,
-		keyID:         keyID,
-		privateKey:    privateKey,
-		canalStore:    canalStore,
-		eventoStore:   eventoStore,
-		uow:           uow,
+		outboundQueue:    make(chan domain.Evento, 1000),
+		serverName:       serverName,
+		keyID:            keyID,
+		privateKey:       privateKey,
+		canalStore:       canalStore,
+		eventoStore:      eventoStore,
+		uow:              uow,
 		authRuleResolver: authRuleResolver,
-		stateResolver: stateResolver,
+		stateResolver:    stateResolver,
 	}
 
 	// nova thread que vai rodar o worker
@@ -564,12 +564,12 @@ func (f *FederationService) GetRoomStateSnapShot(ctx context.Context, roomID, ev
 
 	// Pede snapshot
 	pdus, authChain, err := f.eventoStore.GetStateAndAuthChainEvents(ctx, roomID, eventID)
-	if err != nil{
+	if err != nil {
 		return nil, fmt.Errorf("failed to fetch state snapshot: %w", err)
 	}
 
 	return &RoomStateResponse{
-		PDUs: pdus,
+		PDUs:      pdus,
 		AuthChain: authChain,
 	}, nil
 
@@ -914,7 +914,7 @@ type OutboundQueryDirectoryResponse struct {
 	Servers []string `json:"servers"`
 }
 
-// QueryDirectory implementa RemoteDirectoryResolver: consulta o homeserver remoto dono do 
+// QueryDirectory implementa RemoteDirectoryResolver: consulta o homeserver remoto dono do
 // alias via GET /_matrix/federation/v1/query/directory
 func (f *FederationService) QueryDirectory(ctx context.Context, remoteServer, roomAlias string) (string, []string, error) {
 	targetHost, err := util.ResolveServerName(remoteServer)

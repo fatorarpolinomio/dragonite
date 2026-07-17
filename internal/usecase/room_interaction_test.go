@@ -20,11 +20,11 @@ func newTestRoomInteractionService(t *testing.T, canal *roomsvcFakeCanalStorage,
 	if err != nil {
 		t.Fatalf("failed to generate test key: %v", err)
 	}
-	fedSvc := NewFederationService("example.com", "ed25519:1", priv, canal, evento, uow, nil)
+	fedSvc := NewFederationService("example.com", "ed25519:1", priv, canal, evento, uow, nil, nil)
 	return NewRoomInteractionService(canal, evento, fedSvc, authResolver, uow, "example.com", "ed25519:1", priv)
 }
 
-// SendStateEvent 
+// SendStateEvent
 
 func TestSendStateEvent_Forbidden(t *testing.T) {
 	roomID, userID := "!room1:example.com", "@alice:example.com"
@@ -64,7 +64,7 @@ func TestSendStateEvent_Success(t *testing.T) {
 	}
 }
 
-// SendEvent 
+// SendEvent
 
 func TestSendEvent_Forbidden(t *testing.T) {
 	roomID, userID := "!room1:example.com", "@alice:example.com"
@@ -203,7 +203,7 @@ func TestGetMessages_InvalidDirection(t *testing.T) {
 	}
 }
 
-//  GetStateEventContent 
+//  GetStateEventContent
 
 func TestGetStateEventContent_NeverAMember(t *testing.T) {
 	roomID, userID := "!room1:example.com", "@alice:example.com"
