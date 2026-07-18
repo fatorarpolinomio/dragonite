@@ -39,9 +39,10 @@ type RoomAdminService struct {
 	usuarioStore UsuarioStorage
 	canalStore   CanalStorage
 	eventoStore  EventoStorage
+	usuarioRepo UsuarioStorage
 }
 
-func NewRoomAdminService(serverName, keyID string, privateKey ed25519.PrivateKey, uow WorkUnit, fedService *FederationService, canalStore CanalStorage, eventoStore EventoStorage, usuarioStore UsuarioStorage) *RoomAdminService {
+func NewRoomAdminService(serverName, keyID string, privateKey ed25519.PrivateKey, uow WorkUnit, fedService *FederationService, canalStore CanalStorage, eventoStore EventoStorage, usuarioStore UsuarioStorage, usuarioRepo UsuarioStorage) *RoomAdminService {
 	return &RoomAdminService{
 		serverName:   serverName,
 		keyID:        keyID,
@@ -51,6 +52,7 @@ func NewRoomAdminService(serverName, keyID string, privateKey ed25519.PrivateKey
 		usuarioStore: usuarioStore,
 		canalStore:   canalStore,
 		eventoStore:  eventoStore,
+		usuarioRepo:  usuarioRepo,
 	}
 }
 
@@ -66,8 +68,18 @@ func (s *RoomAdminService) CreateRoom(ctx context.Context, props CreateRoomParam
 		version = "11"
 	}
 	eventsToSave = append(eventsToSave, buildCreateEvent(roomID, props.CreatorID, version))
+
+	var displayName, avatarURL string
+    if profile, err := s.usuarioRepo.GetProfileByID(ctx, props.CreatorID); err == nil && profile != nil {
+        if profile.DisplayName != nil {
+            displayName = *profile.DisplayName
+        }
+        if profile.AvatarURL != nil {
+            avatarURL = *profile.AvatarURL
+        }
+    }
 	// m.room.member
-	creatorJoinEvent := buildJoinEvent(roomID, props.CreatorID)
+	creatorJoinEvent := buildJoinEvent(roomID, props.CreatorID, displayName, avatarURL)
 	eventsToSave = append(eventsToSave, creatorJoinEvent)
 	// m.room.power_levels
 	eventsToSave = append(eventsToSave, buildPowerLevelEvent(roomID, props.CreatorID))

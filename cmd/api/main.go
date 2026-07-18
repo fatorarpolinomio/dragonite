@@ -70,11 +70,16 @@ func main() {
 	stateResolver := usecase.NewStateResolverService(authRuleResolver)
 	fedService := usecase.NewFederationService(config.ServerName, config.KeyID, config.PrivateKey, storage, storage, storage, authRuleResolver, stateResolver)
 	dirService := usecase.NewDirectoryService(storage, storage, storage, fedService, config.ServerName)
-	profileService := usecase.NewProfileService(storage)
-	accountService := usecase.NewAccountService(storage)
-	roomAdminService := usecase.NewRoomAdminService(config.ServerName, config.KeyID, config.PrivateKey, storage, fedService, storage, storage, storage)
+	roomAdminService := usecase.NewRoomAdminService(config.ServerName, config.KeyID, config.PrivateKey, storage, fedService, storage, storage, storage, storage)
 	roomInteractionsService := usecase.NewRoomInteractionService(storage, storage, fedService, authRuleResolver, storage, config.ServerName, config.KeyID, config.PrivateKey)
-	roomMembershipService := usecase.NewRoomMembershipService(storage, storage, storage, authRuleResolver, fedService, stateResolver)
+	roomMembershipService := usecase.NewRoomMembershipService(storage, storage, storage, authRuleResolver, fedService, stateResolver, storage)
+	profileService := usecase.NewProfileService(
+		storage,                     // 1. UsuarioStorage
+		storage,                     // 2. CanalStorage
+		roomMembershipService,  // 3. A variável que guarda o *RoomMembershipService
+		roomInteractionsService, // 4. A variável que guarda o *RoomInteractionService
+	)
+	accountService := usecase.NewAccountService(storage)
 	syncService := usecase.NewSyncService(storage, storage, storage, notifier, storage, storage)
 	systemService := usecase.NewSystemService(config.ServerName, config.Version, config.PublicKey, config.PrivateKey, config.KeyID, storage)
 	usuarioService := usecase.NewUsuarioService(storage, storage, storage)

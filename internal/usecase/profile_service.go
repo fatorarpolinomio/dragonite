@@ -2,19 +2,25 @@ package usecase
 
 import (
 	"context"
+	"log"
 
 	"github.com/caio-bernardo/dragonite/internal/domain"
 	"github.com/caio-bernardo/dragonite/internal/domain/types"
 )
 
 type ProfileService struct {
-	userStore  UsuarioStorage
-	canalStore CanalStorage
+	userStore              UsuarioStorage
+	canalStore             CanalStorage
+	roomMembershipService  *RoomMembershipService  // <-- Campo novo
+	roomInteractionService *RoomInteractionService // <-- Campo novo
 }
 
-func NewProfileService(userStore UsuarioStorage) *ProfileService {
+func NewProfileService(userStore UsuarioStorage, canalStore CanalStorage, roomMembershipService *RoomMembershipService, roomInteractionService *RoomInteractionService) *ProfileService {
 	return &ProfileService{
-		userStore: userStore,
+		userStore:              userStore,
+		canalStore:             canalStore,
+		roomMembershipService:  roomMembershipService,
+		roomInteractionService: roomInteractionService,
 	}
 }
 
@@ -53,6 +59,42 @@ func (p *ProfileService) UpdateProfile(ctx context.Context, userID string, props
 	err := p.userStore.UpdateProfile(ctx, profile)
 	if err != nil {
 		return err
+	}
+
+	perfilCompleto, err := p.GetProfileByUserID(ctx, userID)
+	if err != nil {
+    return err
+	}
+
+	salas, err := p.roomMembershipService.GetJoinedRooms(ctx, userID) //[cite: 13]
+	if err != nil {
+    return err
+	}
+
+	for _, roomID := range salas {
+    // Constrói o conteúdo exigido pelo Element para atualizar a interface
+    content := map[string]any{
+        "membership":  "join",
+        "displayname": perfilCompleto.DisplayName,
+        "avatar_url":  perfilCompleto.AvatarURL,
+    }
+
+    // Preenche a struct exata que o seu SendStateEvent exige
+    params := StateParams{
+        RoomID:    roomID,
+        UserID:    userID,
+        EventType: "m.room.member",
+        StateKey:  userID, // O StateKey de um evento de membro deve ser o próprio userID
+        Content:   content,
+    }
+
+    // Dispara o evento! Essa função já lida com a transação no banco e com a fila de federação
+    _, err = p.roomInteractionService.SendStateEvent(ctx, params) //[cite: 12]
+
+    if err != nil {
+        // Apenas registre o erro no log, mas não interrompa o loop para não quebrar a sincronização das outras salas
+        log.Printf("Erro ao propagar perfil na sala %s: %v", roomID, err)
+    }
 	}
 	return nil
 }

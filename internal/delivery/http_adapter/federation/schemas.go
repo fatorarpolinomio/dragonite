@@ -29,7 +29,7 @@ type VerifyKey struct {
 type TransactionRequest struct {
 	Edus           []EduEvent      `json:"edus,omitempty"`
 	Origin         string          `json:"origin"`
-	OriginServerTS string          `json:"origin_server_ts"`
+	OriginServerTS int64           `json:"origin_server_ts"`
 	PDUs           []domain.Evento `json:"pdus"`
 }
 
@@ -94,6 +94,10 @@ type SendJoinRequest struct {
 	RoomID         string                       `json:"room_id"`
 	EventID        string                       `json:"event_id"`
 	Signatures     map[string]map[string]string `json:"signatures"`
+
+	Depth      int64    `json:"depth"`
+	PrevEvents []string `json:"prev_events"`
+	AuthEvents []string `json:"auth_events"`
 }
 
 type SendJoinResponse struct {
