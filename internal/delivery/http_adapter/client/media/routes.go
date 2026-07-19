@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, authMiddleware httputil.Mid
 	mux.Handle("GET /_matrix/client/v1/media/download/{serverName}/{mediaId}", authMiddleware(http.HandlerFunc(h.downloadMedia)))
 	mux.Handle("GET /_matrix/client/v1/media/thumbnail/{serverName}/{mediaId}", authMiddleware(http.HandlerFunc(h.thumbnailMedia)))
 	mux.Handle("GET /_matrix/client/v1/media/config", authMiddleware(http.HandlerFunc(h.mediaConfig)))
+	mux.HandleFunc("GET /_matrix/federation/v1/media/download/{mediaId}", h.federationDownloadMedia)
 }
 
 // uploadMedia recebe e armazena um arquivo de mídia enviado pelo cliente.
@@ -175,4 +176,25 @@ func (h *Handler) mediaConfig(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, MediaConfigResponse{
 		MUploadSize: &maxSize,
 	})
+}
+
+// federationDownloadMedia serve nossas mídias locais para outros servidores Matrix
+// GET /_matrix/federation/v1/media/download/{mediaId}
+func (h *Handler) federationDownloadMedia(w http.ResponseWriter, r *http.Request) {
+    mediaID := r.PathValue("mediaId")
+    if mediaID == "" {
+        httputil.WriteMatrixError(w, http.StatusBadRequest, httputil.M_BAD_JSON, "Missing mediaId in path")
+        return
+    }
+
+    // Busca a mídia direto do nosso MinIO/Postgres local
+    result, err := h.mediaService.DownloadLocal(r.Context(), mediaID)
+    if err != nil {
+        h.writeDownloadError(w, "federation_download", "local", mediaID, err)
+        return
+    }
+    defer result.Content.Close()
+
+    // Faz o stream dos bytes para o servidor remoto
+    writeMediaResponse(w, result)
 }

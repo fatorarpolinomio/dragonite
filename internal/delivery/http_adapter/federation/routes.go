@@ -65,7 +65,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	auth := h.xMatrixMiddleware
 
-	mux.Handle("GET /_matrix/federation/v1/query/profile", auth(http.HandlerFunc(h.getProfile)))
+	mux.HandleFunc("GET /_matrix/federation/v1/query/profile", h.getProfile)
 	mux.Handle("GET /_matrix/federation/v1/query/directory", auth(http.HandlerFunc(h.getDirectory)))
 	mux.Handle("POST /_matrix/federation/v1/user/keys/query", auth(http.HandlerFunc(h.postUserKeysQuery)))
 	mux.Handle("POST /_matrix/federation/v1/user/keys/claim", auth(http.HandlerFunc(h.postUserKeysClaim)))
@@ -81,7 +81,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("PUT /_matrix/federation/v2/send_leave/{roomId}/{eventId}", auth(http.HandlerFunc(h.sendLeave)))
 	mux.Handle("GET /_matrix/federation/v1/state_ids/{roomId}", auth(http.HandlerFunc(h.getStateIDs)))
 	mux.Handle("POST /_matrix/federation/v1/get_missing_events/{roomId}", auth(http.HandlerFunc(h.postGetMissingEvents)))
-	mux.Handle("GET /_matrix/federation/v1/media/download/{mediaId}", auth(http.HandlerFunc(h.getMediaDownload)))
 	mux.Handle("GET /_matrix/federation/v1/state/{roomId}", auth(http.HandlerFunc(h.getRoomState)))
 }
 

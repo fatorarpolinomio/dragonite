@@ -11,11 +11,12 @@ import (
 
 	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter"
 	"github.com/caio-bernardo/dragonite/internal/infrastructure/config"
-	minio_infra "github.com/caio-bernardo/dragonite/internal/infrastructure/minio"
+	"github.com/caio-bernardo/dragonite/internal/infrastructure/minio"
 	"github.com/caio-bernardo/dragonite/internal/infrastructure/postgres"
 	"github.com/caio-bernardo/dragonite/internal/infrastructure/redis_infra"
 	"github.com/caio-bernardo/dragonite/internal/usecase"
 	"github.com/caio-bernardo/dragonite/internal/util"
+	"github.com/caio-bernardo/dragonite/internal/delivery/http_adapter/federation"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -73,17 +74,20 @@ func main() {
 	roomMembershipService := usecase.NewRoomMembershipService(storage, storage, storage, authRuleResolver, fedService, stateResolver, storage)
 	roomAdminService := usecase.NewRoomAdminService(config.ServerName, config.KeyID, config.PrivateKey, storage, fedService, storage, storage, storage, storage, roomMembershipService)
 	roomInteractionsService := usecase.NewRoomInteractionService(storage, storage, fedService, authRuleResolver, storage, config.ServerName, config.KeyID, config.PrivateKey)
+	fedClient := federation.NewFederationClient()
 	profileService := usecase.NewProfileService(
 		storage,                 // 1. UsuarioStorage
 		storage,                 // 2. CanalStorage
 		roomMembershipService,   // 3. A variável que guarda o *RoomMembershipService
 		roomInteractionsService, // 4. A variável que guarda o *RoomInteractionService
+		fedClient,
+		config.ServerName,        // 5. O nome do servidor
 	)
 	accountService := usecase.NewAccountService(storage)
 	syncService := usecase.NewSyncService(storage, storage, storage, notifier, storage, storage)
 	systemService := usecase.NewSystemService(config.ServerName, config.Version, config.PublicKey, config.PrivateKey, config.KeyID, storage)
 	usuarioService := usecase.NewUsuarioService(storage, storage, storage)
-	mediaService := usecase.NewMediaService(config.ServerName, minioStorage, storage, config.MaxUploadBytes, fedService)
+	mediaService := usecase.NewMediaService(config.ServerName, minioStorage, storage, config.MaxUploadBytes, fedClient)
 	presenceService := usecase.NewPresenceService(storage, storage)
 	backupService := usecase.NewBackupService(storage, storage)
 	keysService := usecase.NewKeysService(storage, storage, fedService, config.ServerName)

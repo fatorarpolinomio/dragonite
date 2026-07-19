@@ -75,7 +75,7 @@ watch:
 
 watch-fed:
 	@echo "Starting federated server B"
-	@env $$(cat .env.fed | grep -v '^#' | xargs) air -c air.toml
+	@env $$(cat .env.fed | grep -v '^#' | xargs) $$(go env GOPATH)/bin/air -c air.toml
 watch-fed2:
 	@env $$(cat .env.fed2 | grep -v '^#' | xargs) air -c air.toml
 

@@ -3,41 +3,71 @@ package usecase
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/caio-bernardo/dragonite/internal/domain"
 	"github.com/caio-bernardo/dragonite/internal/domain/types"
 )
+
+type FederationClient interface {
+	// Assinatura esperada para o client que fará a requisição para fora
+	QueryRemoteProfile(ctx context.Context, serverName string, userID string) (*domain.Profile, error)
+}
 
 type ProfileService struct {
 	userStore              UsuarioStorage
 	canalStore             CanalStorage
 	roomMembershipService  *RoomMembershipService  // <-- Campo novo
 	roomInteractionService *RoomInteractionService // <-- Campo novo
+	fedClient              FederationClient        // <-- Campo novo
+	serverName             string                  // <-- Campo novo
 }
 
-func NewProfileService(userStore UsuarioStorage, canalStore CanalStorage, roomMembershipService *RoomMembershipService, roomInteractionService *RoomInteractionService) *ProfileService {
+func NewProfileService(userStore UsuarioStorage, canalStore CanalStorage, roomMembershipService *RoomMembershipService, roomInteractionService *RoomInteractionService, fedClient FederationClient, serverName string) *ProfileService {
 	return &ProfileService{
 		userStore:              userStore,
 		canalStore:             canalStore,
 		roomMembershipService:  roomMembershipService,
 		roomInteractionService: roomInteractionService,
+		fedClient:              fedClient,
+		serverName:             serverName,
 	}
 }
 
-func (p *ProfileService) GetProfileByUserID(ctx context.Context, user_id string) (*domain.Profile, error) {
-	if user_id == "" {
+func (p *ProfileService) GetProfileByUserID(ctx context.Context, userID string) (*domain.Profile, error) {
+	if userID == "" {
 		return nil, types.ErrInvalidUserID
 	}
 
-	profile, err := p.userStore.GetProfileByID(ctx, user_id)
-	if err != nil {
-		return nil, types.ErrNotFound
+	// CORREÇÃO: Usar SplitN para quebrar a string apenas no primeiro ":"
+	// Assim, "@lucas2:localhost:8090" vira ["@lucas2", "localhost:8090"]
+	parts := strings.SplitN(userID, ":", 2)
+	if len(parts) != 2 {
+		return nil, types.ErrInvalidUserID
 	}
-	if profile == nil {
-		return nil, types.ErrNotFound
-	}
-	return profile, nil
+	userDomain := parts[1]
 
+	// 2. Bifurcação: Local vs Remoto
+	if userDomain == p.serverName {
+		// Fluxo Local
+		profile, err := p.userStore.GetProfileByID(ctx, userID)
+		if err != nil {
+			return nil, types.ErrNotFound
+		}
+		if profile == nil {
+			return nil, types.ErrNotFound
+		}
+		return profile, nil
+	}
+
+	// 3. Fluxo Remoto: Chamar a federação
+	profile, err := p.fedClient.QueryRemoteProfile(ctx, userDomain, userID)
+	if err != nil {
+		log.Printf("Falha ao buscar profile remoto para %s: %v", userID, err)
+		return nil, types.ErrNotFound
+	}
+
+	return profile, nil
 }
 
 type ProfileParams struct {
